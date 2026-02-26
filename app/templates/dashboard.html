@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — ANCO BODEGA{% endblock %}
+{% block page_title %}Dashboard General{% endblock %}
+
+{% block content %}
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Productos en Bodega</div>
+    <div class="kpi-value">{{ total_productos }}</div>
+    <div class="kpi-sub">tipos activos</div>
+  </div>
+  <div class="kpi-card danger">
+    <div class="kpi-label">Stock Crítico</div>
+    <div class="kpi-value">{{ criticos }}</div>
+    <div class="kpi-sub">productos bajo mínimo</div>
+  </div>
+  <div class="kpi-card warning">
+    <div class="kpi-label">Cuadrillas Activas</div>
+    <div class="kpi-value">{{ cuadrillas_activas }}</div>
+    <div class="kpi-sub">en operación</div>
+  </div>
+  <div class="kpi-card success">
+    <div class="kpi-label">Salidas Hoy</div>
+    <div class="kpi-value">{{ salidas_hoy }}</div>
+    <div class="kpi-sub">registradas hoy</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- ALERTAS -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⚠️ Alertas de Stock</div>
+      <a href="{{ url_for('stock.index') }}?estado=alerta" class="btn btn-outline btn-sm">Ver todo</a>
+    </div>
+    {% if alertas_bodega %}
+      {% for p in alertas_bodega %}
+      <div class="alert-row">
+        <div class="alert-dot {{ 'dot-danger' if p.stock_bodega == 0 else 'dot-warning' }}"></div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">{{ p.descripcion }}</div>
+          <div style="font-size:11px;color:var(--text-muted)">Bodega Central · {{ p.codigo }}</div>
+        </div>
+        <span class="badge {{ 'badge-danger' if p.stock_bodega <= 0 else 'badge-warning' }}">
+          {{ p.stock_bodega }} / mín {{ p.stock_min }}
+        </span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">✅ Sin alertas de stock</div>
+    {% endif %}
+  </div>
+
+  <!-- CUADRILLAS -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🚚 Cuadrillas</div>
+      <a href="{{ url_for('cuadrillas.index') }}" class="btn btn-outline btn-sm">Ver todo</a>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px">
+      {% for c in cuadrillas[:6] %}
+      <a href="{{ url_for('cuadrillas.detalle', id=c.id) }}" style="text-decoration:none;border:1.5px solid var(--border);border-radius:8px;padding:12px;transition:all 0.15s" onmouseover="this.style.borderColor='#3E88D6'" onmouseout="this.style.borderColor='#dde8f0'">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--text);margin-bottom:4px">{{ c.nombre }}</div>
+        <div style="font-size:11px;color:var(--text-muted)">{{ c.stock|length }} productos</div>
+      </a>
+      {% endfor %}
+      {% if cuadrillas|length > 6 %}
+      <a href="{{ url_for('cuadrillas.index') }}" style="text-decoration:none;border:1.5px dashed var(--border);border-radius:8px;padding:12px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px">
+        + {{ cuadrillas|length - 6 }} más
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ÚLTIMOS MOVIMIENTOS -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📋 Últimos Movimientos</div>
+  </div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Fecha/Hora</th><th>Tipo</th><th>Detalle</th><th>Cantidad</th></tr>
+    </thead>
+    <tbody>
+      {% for e in ultimas_entradas %}
+      <tr>
+        <td style="color:var(--text-muted)">{{ e.creado_en.strftime('%d %b %H:%M') }}</td>
+        <td><span class="badge badge-warning">ENTRADA</span></td>
+        <td>{{ e.producto.descripcion }}</td>
+        <td><strong>+{{ e.cantidad }} {{ e.producto.unidad }}</strong></td>
+      </tr>
+      {% endfor %}
+      {% for s in ultimas_salidas %}
+      <tr>
+        <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %H:%M') }}</td>
+        <td><span class="badge badge-blue">SALIDA</span></td>
+        <td>Cuadrilla — {{ s.cuadrilla.nombre }}</td>
+        <td><strong>{{ s.items|length }} producto(s)</strong></td>
+      </tr>
+      {% endfor %}
+      {% if not ultimas_entradas and not ultimas_salidas %}
+      <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">Sin movimientos registrados aún</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

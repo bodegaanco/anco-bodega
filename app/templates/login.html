@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANCO BODEGA — Iniciar Sesión</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Barlow',sans-serif;background:#0d1f35;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+  .login-box{background:#fff;border-radius:16px;width:380px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.4);}
+  .login-header{padding:32px;background:#0d1f35;text-align:center;}
+  .logo-text{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;color:#fff;letter-spacing:2px;}
+  .logo-text span{color:#3E88D6;}
+  .logo-sub{font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:3px;text-transform:uppercase;margin-top:4px;}
+  .login-body{padding:28px;}
+  .form-group{margin-bottom:14px;}
+  .form-label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b8099;margin-bottom:6px;}
+  .form-input{width:100%;padding:10px 14px;border:1.5px solid #dde8f0;border-radius:8px;font-size:14px;font-family:'Barlow',sans-serif;transition:border 0.15s;}
+  .form-input:focus{outline:none;border-color:#3E88D6;}
+  .btn-login{width:100%;padding:12px;background:#3E88D6;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;font-family:'Barlow',sans-serif;cursor:pointer;margin-top:6px;transition:background 0.15s;}
+  .btn-login:hover{background:#2a6ab8;}
+  .flash-error{background:#ffeaea;color:#e63946;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:600;margin-bottom:14px;border-left:3px solid #e63946;}
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-header">
+    <div class="logo-text">ANCO <span>BODEGA</span></div>
+    <div class="logo-sub">Sistema de Inventario</div>
+  </div>
+  <div class="login-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash-error">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="POST">
+      <div class="form-group">
+        <label class="form-label">Correo electrónico</label>
+        <input type="email" name="email" class="form-input" placeholder="tu@correo.com" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contraseña</label>
+        <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-login">Ingresar al Sistema</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

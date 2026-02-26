@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Entrada a Bodega — ANCO BODEGA{% endblock %}
+{% block page_title %}Registrar Entrada a Bodega{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:700px">
+  <div class="card-header">
+    <div class="card-title">📥 Nueva Entrada de Material</div>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('stock.entrada') }}">
+      <label class="form-label">Productos que ingresan a bodega</label>
+      <div id="entrada-items">
+        <div class="item-row">
+          <select class="form-select" name="producto_id[]" required>
+            <option value="">Seleccionar producto...</option>
+            {% for p in productos %}
+            <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }}) · Stock: {{ p.stock_bodega }}</option>
+            {% endfor %}
+          </select>
+          <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1" required>
+          <span></span>
+        </div>
+      </div>
+      <button type="button" class="btn-add-more" onclick="addEntrada()">+ Agregar otro producto</button>
+      <div class="info-box" style="margin-top:14px">💡 El stock de bodega se actualizará automáticamente al registrar.</div>
+      <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+        <a href="{{ url_for('stock.index') }}" class="btn btn-outline">Cancelar</a>
+        <button type="submit" class="btn btn-primary">✅ Registrar Entrada</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const productosOpts = `{% for p in productos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }})</option>{% endfor %}`;
+
+  function addEntrada() {
+    const c = document.getElementById('entrada-items');
+    const d = document.createElement('div');
+    d.className = 'item-row';
+    d.style.marginTop = '8px';
+    d.innerHTML = `
+      <select class="form-select" name="producto_id[]">
+        <option value="">Seleccionar producto...</option>${productosOpts}
+      </select>
+      <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1">
+      <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
+    `;
+    c.appendChild(d);
+  }
+</script>
+{% endblock %}

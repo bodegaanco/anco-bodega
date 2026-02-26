@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}{{ cuadrilla.nombre }} — ANCO BODEGA{% endblock %}
+{% block page_title %}Cuadrilla — {{ cuadrilla.nombre }}{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <a href="{{ url_for('cuadrillas.index') }}" class="btn btn-outline">← Volver</a>
+  <div style="margin-left:auto;display:flex;gap:10px">
+    <form method="POST" action="{{ url_for('cuadrillas.toggle', id=cuadrilla.id) }}" style="display:inline">
+      <button type="submit" class="btn btn-outline">
+        {{ 'Desactivar' if cuadrilla.activa else 'Activar' }} cuadrilla
+      </button>
+    </form>
+    <a href="{{ url_for('inventario.index') }}" class="btn btn-primary">📋 Hacer Inventario</a>
+  </div>
+</div>
+
+<!-- Info card -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
+  <div class="kpi-card">
+    <div class="kpi-label">Maestro</div>
+    <div class="kpi-value" style="font-size:24px">{{ cuadrilla.nombre }}</div>
+  </div>
+  <div class="kpi-card {{ 'danger' if stock|selectattr('cantidad','le',0)|list|length > 0 else 'success' }}">
+    <div class="kpi-label">Estado</div>
+    <div class="kpi-value" style="font-size:24px">{{ 'Activa' if cuadrilla.activa else 'Inactiva' }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Productos en camioneta</div>
+    <div class="kpi-value">{{ stock|length }}</div>
+  </div>
+</div>
+
+<!-- Stock completo -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📦 Stock en Camioneta</div>
+    <span style="font-size:12px;color:var(--text-muted)">Calculado: entregado − rendido</span>
+  </div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Código</th><th>Producto</th><th>Unidad</th><th style="text-align:right">Cantidad en camioneta</th><th>Estado</th></tr>
+    </thead>
+    <tbody>
+      {% for sc in stock %}
+      {% set alerta = sc.alerta() %}
+      <tr class="{{ 'tbl-row-danger' if alerta == 'critico' else ('tbl-row-warning' if alerta == 'bajo' else '') }}">
+        <td style="color:var(--text-muted);font-size:12px">{{ sc.producto.codigo }}</td>
+        <td><strong>{{ sc.producto.descripcion }}</strong></td>
+        <td>{{ sc.producto.unidad }}</td>
+        <td style="text-align:right">
+          <strong style="color:{{ 'var(--danger)' if alerta == 'critico' else ('var(--warning)' if alerta == 'bajo' else 'inherit') }}">
+            {{ sc.cantidad }}
+          </strong>
+        </td>
+        <td>
+          {% if alerta == 'critico' %}
+            <span class="badge badge-danger">⚠️ Sin stock</span>
+          {% elif alerta == 'bajo' %}
+            <span class="badge badge-warning">⚡ Bajo</span>
+          {% else %}
+            <span class="badge badge-ok">OK</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">
+        Sin stock asignado. <a href="{{ url_for('movimientos.salidas') }}" style="color:var(--primary)">Registrar primera salida</a>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Últimas salidas a esta cuadrilla -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📤 Últimas Entregas</div>
+    <a href="{{ url_for('movimientos.historial') }}?cuadrilla_id={{ cuadrilla.id }}" class="btn btn-outline btn-sm">Ver todo</a>
+  </div>
+  <table class="tbl">
+    <thead><tr><th>Fecha</th><th>Productos</th><th>Notas</th></tr></thead>
+    <tbody>
+      {% for s in cuadrilla.salidas[-5:]|reverse %}
+      <tr>
+        <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+        <td style="font-size:12px">
+          {% for item in s.items %}
+            <span style="display:inline-block;background:#eef5ff;color:var(--primary);border-radius:4px;padding:2px 7px;margin:1px;font-size:11px;font-weight:600">
+              {{ item.producto.descripcion|truncate(25) }} × {{ item.cantidad }}
+            </span>
+          {% endfor %}
+        </td>
+        <td style="color:var(--text-muted);font-size:12px">{{ s.notas or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Sin entregas aún</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

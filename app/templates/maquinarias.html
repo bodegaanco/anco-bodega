@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% block title %}Maquinarias — ANCO BODEGA{% endblock %}
+{% block page_title %}Préstamo de Maquinarias{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <span style="color:var(--text-muted);font-size:13px">
+    {{ activos|length }} equipo(s) actualmente en uso
+  </span>
+  <div style="margin-left:auto;display:flex;gap:10px">
+    <button onclick="openModal('nuevaMaqModal')" class="btn btn-outline">+ Agregar Equipo</button>
+    <button onclick="openModal('prestarModal')" class="btn btn-primary">📤 Entregar Equipo</button>
+  </div>
+</div>
+
+<!-- EQUIPOS ACTIVOS EN USO -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title" style="color:var(--danger)">⚡ Equipos Actualmente en Uso</div>
+    <span class="badge badge-danger">{{ activos|length }} activos</span>
+  </div>
+  {% if activos %}
+  <table class="tbl">
+    <thead>
+      <tr><th>Equipo</th><th>Cuadrilla</th><th>Fecha Entrega</th><th>Días fuera</th><th>Notas</th><th>Acciones</th></tr>
+    </thead>
+    <tbody>
+      {% for p in activos %}
+      {% set dias = ((now - p.fecha_entrega).days) %}
+      <tr class="{{ 'tbl-row-warning' if dias > 3 else '' }}">
+        <td><strong>{{ p.maquinaria.nombre }}</strong><br><span style="font-size:11px;color:var(--text-muted)">{{ p.maquinaria.codigo or '' }}</span></td>
+        <td>{{ p.cuadrilla.nombre }}</td>
+        <td style="color:var(--text-muted)">{{ p.fecha_entrega.strftime('%d %b %Y %H:%M') }}</td>
+        <td>
+          <span class="badge {{ 'badge-danger' if dias > 5 else ('badge-warning' if dias > 2 else 'badge-ok') }}">
+            {{ dias }} día(s)
+          </span>
+        </td>
+        <td style="color:var(--text-muted);font-size:12px">{{ p.notas or '—' }}</td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <form method="POST" action="{{ url_for('maquinarias.devolver', prestamo_id=p.id) }}">
+              <button type="submit" class="btn btn-primary btn-sm">✅ Devuelto</button>
+            </form>
+            <form method="POST" action="{{ url_for('maquinarias.eliminar_prestamo', prestamo_id=p.id) }}"
+                  onsubmit="return confirm('¿Eliminar este registro?')">
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">🗑️</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:30px;text-align:center;color:var(--text-muted)">✅ Sin equipos en uso actualmente</div>
+  {% endif %}
+</div>
+
+<!-- CATÁLOGO CON CAMBIO DE ESTADO -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">🔧 Catálogo de Equipos</div>
+    <span style="font-size:11px;color:var(--text-muted)">Puedes cambiar el estado de cada equipo</span>
+  </div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Equipo</th><th>Código</th><th>Descripción</th><th>Estado</th><th>Cambiar Estado</th><th>Acción</th></tr>
+    </thead>
+    <tbody>
+      {% for m in maquinarias %}
+      {% set prestamo_activo = m.en_uso() %}
+
+      {# Determinar estado real: si está prestada, es "en uso" sin importar el campo estado #}
+      {% if prestamo_activo %}
+        {% set estado_real = 'en_uso' %}
+      {% else %}
+        {% set estado_real = m.estado or 'disponible' %}
+      {% endif %}
+
+      <tr class="{{ 'tbl-row-danger' if estado_real == 'fuera_servicio' else ('tbl-row-warning' if estado_real == 'mantencion' else '') }}">
+        <td><strong>{{ m.nombre }}</strong></td>
+        <td style="color:var(--text-muted);font-size:12px">{{ m.codigo or '—' }}</td>
+        <td style="color:var(--text-muted);font-size:12px">{{ m.descripcion or '—' }}</td>
+        <td>
+          {% if estado_real == 'en_uso' %}
+            <span class="badge badge-warning">📤 En uso — {{ prestamo_activo.cuadrilla.nombre }}</span>
+          {% elif estado_real == 'disponible' %}
+            <span class="badge badge-ok">✅ Disponible</span>
+          {% elif estado_real == 'mantencion' %}
+            <span class="badge badge-warning">🔧 En Mantención</span>
+          {% elif estado_real == 'fuera_servicio' %}
+            <span class="badge badge-danger">❌ Fuera de Servicio</span>
+          {% endif %}
+        </td>
+
+        <!-- CAMBIAR ESTADO (solo si no está prestada) -->
+        <td>
+          {% if not prestamo_activo %}
+          <form method="POST" action="{{ url_for('maquinarias.cambiar_estado', id=m.id) }}" style="display:flex;gap:6px;align-items:center">
+            <select name="estado" class="form-select" style="font-size:11px;padding:4px 8px;width:160px" onchange="this.form.submit()">
+              <option value="disponible"     {{ 'selected' if estado_real == 'disponible' }}>✅ Disponible</option>
+              <option value="mantencion"     {{ 'selected' if estado_real == 'mantencion' }}>🔧 En Mantención</option>
+              <option value="fuera_servicio" {{ 'selected' if estado_real == 'fuera_servicio' }}>❌ Fuera de Servicio</option>
+            </select>
+          </form>
+          {% else %}
+          <span style="font-size:11px;color:var(--text-muted)">No editable (en uso)</span>
+          {% endif %}
+        </td>
+
+        <td>
+          {% if not prestamo_activo %}
+          <form method="POST" action="{{ url_for('maquinarias.desactivar', id=m.id) }}"
+                onsubmit="return confirm('¿Desactivar y ocultar {{ m.nombre }}?')" style="display:inline">
+            <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Desactivar</button>
+          </form>
+          {% else %}
+          <span style="font-size:11px;color:var(--text-muted)">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">
+          Sin equipos registrados.
+          <button onclick="openModal('nuevaMaqModal')" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px">Agrega el primero</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- HISTORIAL -->
+{% if historial %}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📋 Historial de Préstamos Devueltos</div>
+    <span style="font-size:11px;color:var(--text-muted)">Últimos 30 registros</span>
+  </div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Equipo</th><th>Cuadrilla</th><th>Entregado</th><th>Devuelto</th><th>Días</th></tr>
+    </thead>
+    <tbody>
+      {% for p in historial %}
+      {% set dias = ((p.fecha_devol - p.fecha_entrega).days) %}
+      <tr>
+        <td><strong>{{ p.maquinaria.nombre }}</strong></td>
+        <td>{{ p.cuadrilla.nombre }}</td>
+        <td style="color:var(--text-muted)">{{ p.fecha_entrega.strftime('%d %b %Y') }}</td>
+        <td style="color:var(--success);font-weight:600">{{ p.fecha_devol.strftime('%d %b %Y') }}</td>
+        <td><span class="badge badge-gray">{{ dias }} día(s)</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- MODAL NUEVA MAQUINARIA -->
+<div class="modal-overlay" id="nuevaMaqModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🔧 Nuevo Equipo / Maquinaria</div>
+      <button class="modal-close" onclick="closeModal('nuevaMaqModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('maquinarias.nueva') }}">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombre del Equipo</label>
+            <input type="text" name="nombre" class="form-input" placeholder="Ej: Generador 5KVA" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Código (opcional)</label>
+            <input type="text" name="codigo" class="form-input" placeholder="Ej: GEN-001">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción (opcional)</label>
+          <input type="text" name="descripcion" class="form-input" placeholder="Ej: Generador eléctrico para emergencias">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('nuevaMaqModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Equipo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL PRESTAR -->
+<div class="modal-overlay" id="prestarModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📤 Entregar Equipo a Cuadrilla</div>
+      <button class="modal-close" onclick="closeModal('prestarModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('maquinarias.prestar') }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Equipo / Maquinaria</label>
+          <select name="maquinaria_id" class="form-select" required>
+            <option value="">Seleccionar equipo...</option>
+            {% for m in maquinarias %}
+              {% if not m.en_uso() and m.estado == 'disponible' %}
+                <option value="{{ m.id }}">{{ m.nombre }}{% if m.codigo %} ({{ m.codigo }}){% endif %}</option>
+              {% else %}
+                <option disabled style="color:var(--text-muted)">
+                  {{ m.nombre }} —
+                  {% if m.en_uso() %}EN USO{% elif m.estado == 'mantencion' %}EN MANTENCIÓN{% else %}FUERA DE SERVICIO{% endif %}
+                </option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cuadrilla receptora</label>
+          <select name="cuadrilla_id" class="form-select" required>
+            <option value="">Seleccionar cuadrilla...</option>
+            {% for c in cuadrillas %}
+            <option value="{{ c.id }}">{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas (opcional)</label>
+          <input type="text" name="notas" class="form-input" placeholder="Ej: Para emergencia sector norte">
+        </div>
+        <div class="info-box">💡 Solo aparecen los equipos <strong>Disponibles</strong>. Los que están En Mantención o Fuera de Servicio no se pueden entregar.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('prestarModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Entregar Equipo</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Cuadrillas — ANCO BODEGA{% endblock %}
+{% block page_title %}Cuadrillas{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <span style="color:var(--text-muted);font-size:13px">
+    {{ cuadrillas|selectattr('activa')|list|length }} cuadrillas activas
+  </span>
+  <div style="margin-left:auto;display:flex;gap:10px">
+    <button onclick="openModal('nuevaCuadrillaModal')" class="btn btn-outline">+ Agregar Cuadrilla</button>
+    <a href="{{ url_for('inventario.index') }}" class="btn btn-primary">📋 Nuevo Inventario</a>
+  </div>
+</div>
+
+<div class="grid-3">
+  {% for c in cuadrillas %}
+  <div class="card" style="margin-bottom:0">
+    <div class="card-header">
+      <div>
+        <div class="card-title">{{ c.nombre }}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ c.stock|length }} productos en camioneta</div>
+      </div>
+      {% set alertas_c = c.stock|selectattr('cantidad', 'le', 0)|list|length %}
+      {% if alertas_c > 0 %}
+        <span class="badge badge-danger">{{ alertas_c }} alerta(s)</span>
+      {% elif not c.activa %}
+        <span class="badge badge-gray">Inactiva</span>
+      {% else %}
+        <span class="badge badge-ok">Todo OK</span>
+      {% endif %}
+    </div>
+
+    {% if c.stock %}
+    <table class="tbl" style="font-size:12px">
+      <thead><tr><th>Producto</th><th style="text-align:right">En camioneta</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for sc in c.stock[:4] %}
+        <tr>
+          <td style="font-size:11px">{{ sc.producto.descripcion|truncate(28) }}</td>
+          <td style="text-align:right">
+            <strong style="color:{{ 'var(--danger)' if sc.cantidad == 0 else ('var(--warning)' if sc.cantidad <= sc.stock_min and sc.stock_min > 0 else 'inherit') }}">
+              {{ sc.cantidad }} {{ sc.producto.unidad }}
+            </strong>
+          </td>
+          <td>
+            {% if sc.cantidad == 0 %}
+              <span class="badge badge-danger" style="font-size:10px">⚠️</span>
+            {% elif sc.stock_min > 0 and sc.cantidad <= sc.stock_min %}
+              <span class="badge badge-warning" style="font-size:10px">⚡</span>
+            {% else %}
+              <span class="badge badge-ok" style="font-size:10px">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if c.stock|length > 4 %}
+        <tr>
+          <td colspan="3" style="text-align:center;font-size:11px;color:var(--text-muted);padding:6px">
+            + {{ c.stock|length - 4 }} productos más
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px">Sin stock asignado</div>
+    {% endif %}
+
+    <div style="padding:10px 14px;display:flex;gap:6px;border-top:1px solid var(--border)">
+      <a href="{{ url_for('cuadrillas.detalle', id=c.id) }}" class="btn btn-outline btn-sm" style="flex:1;justify-content:center">Ver</a>
+      <a href="{{ url_for('inventario.index') }}" class="btn btn-primary btn-sm" style="flex:1;justify-content:center">Inventario</a>
+      <!-- Desactivar / Activar -->
+      <form method="POST" action="{{ url_for('cuadrillas.toggle', id=c.id) }}">
+        <button type="submit" class="btn btn-outline btn-sm" title="{{ 'Activar' if not c.activa else 'Desactivar' }}"
+          style="{{ 'color:var(--success);border-color:var(--success)' if not c.activa else 'color:var(--warning);border-color:var(--warning)' }}">
+          {{ '▶' if not c.activa else '⏸' }}
+        </button>
+      </form>
+      <!-- Eliminar -->
+      <form method="POST" action="{{ url_for('cuadrillas.eliminar', id=c.id) }}"
+            onsubmit="return confirm('¿Eliminar cuadrilla {{ c.nombre }}? Esta acción no se puede deshacer.')">
+        <button type="submit" class="btn btn-outline btn-sm" title="Eliminar"
+                style="color:var(--danger);border-color:var(--danger)">🗑️</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--text-muted)">
+    No hay cuadrillas registradas. <button onclick="openModal('nuevaCuadrillaModal')" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:14px">Agrega la primera</button>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- MODAL NUEVA CUADRILLA -->
+<div class="modal-overlay" id="nuevaCuadrillaModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🚚 Agregar Cuadrilla</div>
+      <button class="modal-close" onclick="closeModal('nuevaCuadrillaModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('cuadrillas.nueva') }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nombre del Maestro</label>
+          <input type="text" name="nombre" class="form-input" placeholder="Ej: Hernández" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas (opcional)</label>
+          <input type="text" name="notas" class="form-input" placeholder="Ej: Cuadrilla de refuerzo">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('nuevaCuadrillaModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Agregar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

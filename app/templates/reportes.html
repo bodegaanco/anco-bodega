@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}Reportes — ANCO BODEGA{% endblock %}
+{% block page_title %}Reportes y Exportaciones{% endblock %}
+
+{% block content %}
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="kpi-card"><div class="kpi-label">Total Entradas</div><div class="kpi-value">{{ total_entradas }}</div><div class="kpi-sub">registradas en el sistema</div></div>
+  <div class="kpi-card success"><div class="kpi-label">Total Salidas</div><div class="kpi-value">{{ total_salidas }}</div><div class="kpi-sub">entregas a cuadrillas</div></div>
+  <div class="kpi-card warning"><div class="kpi-label">Total OT Rendidas</div><div class="kpi-value">{{ total_rendiciones }}</div><div class="kpi-sub">órdenes de trabajo</div></div>
+</div>
+
+<!-- EXPORTAR -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📥 Exportar a Excel</div>
+    <span style="font-size:11px;color:var(--text-muted)">Descarga directa .xlsx</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:20px">
+    <a href="{{ url_for('export.stock') }}" style="text-decoration:none">
+      <div class="card" style="padding:16px;margin-bottom:0;cursor:pointer">
+        <div style="font-size:28px;margin-bottom:6px">📦</div>
+        <div style="font-weight:700;font-size:13px;color:var(--text)">Stock Bodega</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Estado actual completo</div>
+        <div style="margin-top:10px"><span class="badge badge-blue">↓ Descargar</span></div>
+      </div>
+    </a>
+    <a href="{{ url_for('export.compras') }}" style="text-decoration:none">
+      <div class="card" style="padding:16px;margin-bottom:0;cursor:pointer">
+        <div style="font-size:28px;margin-bottom:6px">🛒</div>
+        <div style="font-weight:700;font-size:13px;color:var(--text)">Lista de Compras</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Productos bajo mínimo</div>
+        <div style="margin-top:10px"><span class="badge badge-danger">↓ Descargar</span></div>
+      </div>
+    </a>
+    <a href="{{ url_for('export.salidas') }}" style="text-decoration:none">
+      <div class="card" style="padding:16px;margin-bottom:0;cursor:pointer">
+        <div style="font-size:28px;margin-bottom:6px">📤</div>
+        <div style="font-weight:700;font-size:13px;color:var(--text)">Historial Salidas</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Todas las entregas</div>
+        <div style="margin-top:10px"><span class="badge badge-ok">↓ Descargar</span></div>
+      </div>
+    </a>
+    <div class="card" style="padding:16px;margin-bottom:0;cursor:pointer" onclick="openModal('comparativoModal')">
+      <div style="font-size:28px;margin-bottom:6px">📅</div>
+      <div style="font-weight:700;font-size:13px;color:var(--text)">Comparativo Mensual</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Consumo por cuadrilla</div>
+      <div style="margin-top:10px"><span class="badge badge-warning">↓ Elegir mes</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🛒 Lista de Compras</div>
+      <a href="{{ url_for('export.compras') }}" class="btn btn-outline btn-sm">↓ Excel</a>
+    </div>
+    {% if compras %}
+    <table class="tbl">
+      <thead><tr><th>Producto</th><th>Stock</th><th>Mínimo</th><th>Faltan</th></tr></thead>
+      <tbody>
+        {% for p in compras %}
+        <tr class="{{ 'tbl-row-danger' if p.stock_bodega == 0 else 'tbl-row-warning' }}">
+          <td style="font-size:12px"><strong>{{ p.descripcion|truncate(35) }}</strong><br><span style="color:var(--text-muted)">{{ p.codigo }}</span></td>
+          <td><strong style="color:{{ 'var(--danger)' if p.stock_bodega == 0 else 'var(--warning)' }}">{{ p.stock_bodega }}</strong></td>
+          <td>{{ p.stock_min }}</td>
+          <td><span class="badge badge-danger">{{ p.stock_min - p.stock_bodega }} {{ p.unidad }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:30px;text-align:center;color:var(--text-muted)">✅ Todo el stock sobre el mínimo</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">📈 Más Usados (OT)</div></div>
+    {% if top_productos %}
+    <table class="tbl">
+      <thead><tr><th>#</th><th>Producto</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for desc, total in top_productos %}
+        <tr>
+          <td style="color:var(--text-muted);font-weight:700">{{ loop.index }}</td>
+          <td style="font-size:12px">{{ desc|truncate(40) }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:{{ [(total / (top_productos[0][1] or 1)) * 100,100]|min }}%;background:var(--primary)"></div></div>
+              <strong>{{ total }}</strong>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:30px;text-align:center;color:var(--text-muted)">Sin rendiciones aún</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- MODAL COMPARATIVO -->
+<div class="modal-overlay" id="comparativoModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📅 Comparativo Mensual</div>
+      <button class="modal-close" onclick="closeModal('comparativoModal')">✕</button>
+    </div>
+    <form method="GET" action="{{ url_for('export.comparativo') }}">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Mes</label>
+            <select name="mes" class="form-select">
+              {% for n, nombre in [(1,'Enero'),(2,'Febrero'),(3,'Marzo'),(4,'Abril'),(5,'Mayo'),(6,'Junio'),(7,'Julio'),(8,'Agosto'),(9,'Septiembre'),(10,'Octubre'),(11,'Noviembre'),(12,'Diciembre')] %}
+              <option value="{{ n }}" {{ 'selected' if n == mes_actual }}>{{ nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Año</label>
+            <select name="año" class="form-select">
+              {% for y in [año_actual - 1, año_actual, año_actual + 1] %}
+              <option value="{{ y }}" {{ 'selected' if y == año_actual }}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="info-box">📊 Excel con resumen + detalle de OT por cuadrilla en el período.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('comparativoModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">↓ Descargar Excel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

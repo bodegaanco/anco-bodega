@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Historial de Entregas — ANCO BODEGA{% endblock %}
+{% block page_title %}Historial de Entregas{% endblock %}
+
+{% block content %}
+<form method="GET" class="toolbar">
+  <select name="cuadrilla_id" class="form-select" style="max-width:200px">
+    <option value="">Todas las cuadrillas</option>
+    {% for c in cuadrillas %}
+    <option value="{{ c.id }}" {{ 'selected' if request.args.get('cuadrilla_id')|int == c.id }}>{{ c.nombre }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="desde" class="form-input" style="max-width:150px" value="{{ request.args.get('desde','') }}">
+  <span style="color:var(--text-muted)">→</span>
+  <input type="date" name="hasta" class="form-input" style="max-width:150px" value="{{ request.args.get('hasta','') }}">
+  <button type="submit" class="btn btn-outline">Filtrar</button>
+  <span style="margin-left:auto;color:var(--text-muted);font-size:13px">{{ salidas|length }} entrega(s)</span>
+</form>
+
+{% if not salidas %}
+  <div class="card">
+    <div style="padding:40px;text-align:center;color:var(--text-muted)">
+      Sin entregas registradas aún. Comienza registrando una <a href="{{ url_for('movimientos.salidas') }}" style="color:var(--primary)">nueva salida</a>.
+    </div>
+  </div>
+{% else %}
+
+  {% if cuadrilla %}
+    <!-- Vista de una sola cuadrilla -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🚚 Cuadrilla — {{ cuadrilla.nombre }}</div>
+        <span style="font-size:12px;color:var(--text-muted)">{{ salidas|length }} entregas</span>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr><th>Fecha/Hora</th><th>Productos entregados</th><th>Total ítems</th><th>Notas</th></tr>
+        </thead>
+        <tbody>
+          {% for s in salidas %}
+          <tr>
+            <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+            <td style="font-size:12px">
+              {% for item in s.items %}
+                <span style="display:inline-block;background:#eef5ff;color:var(--primary);border-radius:4px;padding:2px 7px;margin:1px;font-size:11px;font-weight:600">
+                  {{ item.producto.descripcion|truncate(28) }} × {{ item.cantidad }}
+                </span>
+              {% endfor %}
+            </td>
+            <td><span class="badge badge-blue">{{ s.items|length }} prod.</span></td>
+            <td style="color:var(--text-muted);font-size:12px">{{ s.notas or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  {% else %}
+    <!-- Vista agrupada por cuadrilla -->
+    {% set ns = namespace(cuadrilla_actual=None) %}
+    {% for s in salidas %}
+      {% if ns.cuadrilla_actual != s.cuadrilla.id %}
+        {% if ns.cuadrilla_actual is not none %}</tbody></table></div>{% endif %}
+        {% set ns.cuadrilla_actual = s.cuadrilla.id %}
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header" style="background:#f8fafc">
+            <div class="card-title">🚚 Cuadrilla — {{ s.cuadrilla.nombre }}</div>
+            <a href="?cuadrilla_id={{ s.cuadrilla.id }}" class="btn btn-outline btn-sm">Ver solo esta</a>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>Fecha/Hora</th><th>Productos entregados</th><th>Total</th><th>Notas</th></tr></thead>
+            <tbody>
+      {% endif %}
+          <tr>
+            <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+            <td style="font-size:12px">
+              {% for item in s.items %}
+                <span style="display:inline-block;background:#eef5ff;color:var(--primary);border-radius:4px;padding:2px 7px;margin:1px;font-size:11px;font-weight:600">
+                  {{ item.producto.descripcion|truncate(28) }} × {{ item.cantidad }}
+                </span>
+              {% endfor %}
+            </td>
+            <td><span class="badge badge-blue">{{ s.items|length }} prod.</span></td>
+            <td style="color:var(--text-muted);font-size:12px">{{ s.notas or '—' }}</td>
+          </tr>
+    {% endfor %}
+    {% if ns.cuadrilla_actual is not none %}</tbody></table></div>{% endif %}
+  {% endif %}
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% block title %}Stock Bodega — ANCO BODEGA{% endblock %}
+{% block page_title %}Stock Bodega{% endblock %}
+
+{% block content %}
+<form method="GET" class="toolbar">
+  <input type="text" name="buscar" class="form-input" placeholder="🔍 Buscar producto..." style="max-width:260px" value="{{ request.args.get('buscar','') }}">
+  <select name="categoria" class="form-select" style="max-width:180px" onchange="this.form.submit()">
+    <option value="">Todas las categorías</option>
+    {% for cat in categorias %}
+    <option value="{{ cat[0] }}" {{ 'selected' if request.args.get('categoria') == cat[0] }}>{{ cat[0] }}</option>
+    {% endfor %}
+  </select>
+  <select name="estado" class="form-select" style="max-width:160px" onchange="this.form.submit()">
+    <option value="">Todo el stock</option>
+    <option value="alerta" {{ 'selected' if request.args.get('estado') == 'alerta' }}>⚠️ Solo alertas</option>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrar</button>
+  <a href="{{ url_for('stock.entrada') }}" class="btn btn-primary" style="margin-left:auto">📥 Registrar Entrada</a>
+</form>
+
+<div class="card">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Código</th><th>Descripción</th><th>Categoría</th>
+        <th>Unidad</th><th>Stock</th><th>Mínimo</th>
+        <th>Estado</th><th>Nivel</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in productos %}
+      {% set alerta = p.alerta() %}
+      <tr class="{{ 'tbl-row-danger' if alerta == 'critico' else ('tbl-row-warning' if alerta == 'bajo' else '') }}">
+        <td style="color:var(--text-muted);font-size:12px">{{ p.codigo }}</td>
+        <td><strong>{{ p.descripcion }}</strong></td>
+        <td><span class="badge badge-gray">{{ p.categoria }}</span></td>
+        <td>{{ p.unidad }}</td>
+        <td>
+          <strong style="color:{{ 'var(--danger)' if alerta == 'critico' else ('var(--warning)' if alerta == 'bajo' else 'inherit') }}">
+            {{ p.stock_bodega }}
+          </strong>
+        </td>
+        <td>
+          <span style="color:var(--text-muted)">{{ p.stock_min }}</span>
+        </td>
+        <td>
+          {% if alerta == 'critico' %}<span class="badge badge-danger">⚠️ Crítico</span>
+          {% elif alerta == 'bajo' %}<span class="badge badge-warning">⚡ Bajo</span>
+          {% else %}<span class="badge badge-ok">Normal</span>{% endif %}
+        </td>
+        <td>
+          {% if p.stock_min > 0 %}
+            {% set pct = [[p.stock_bodega / (p.stock_min * 3) * 100, 0]|max, 100]|min %}
+          {% else %}
+            {% set pct = 100 %}
+          {% endif %}
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:{{ pct }}%;background:{{ 'var(--danger)' if alerta == 'critico' else ('var(--warning)' if alerta == 'bajo' else 'var(--success)') }}"></div>
+          </div>
+        </td>
+        <td style="display:flex;gap:6px">
+          <button onclick="openEditar(
+              {{ p.id }},
+              '{{ p.descripcion|replace("'","\\'")|replace('"','\\"') }}',
+              '{{ p.categoria }}',
+              '{{ p.unidad }}',
+              {{ p.stock_min }}
+            )" class="btn btn-outline btn-sm">✏️ Editar</button>
+          <button onclick="openAjuste({{ p.id }}, '{{ p.descripcion|replace("'","\\'")|truncate(30) }}', {{ p.stock_bodega }})"
+            class="btn btn-outline btn-sm">📦 Stock</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">No se encontraron productos</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL EDITAR PRODUCTO -->
+<div class="modal-overlay" id="editarModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Editar Producto</div>
+      <button class="modal-close" onclick="closeModal('editarModal')">✕</button>
+    </div>
+    <form method="POST" id="editarForm" action="">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <input type="text" name="descripcion" id="editar-desc" class="form-input" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Categoría</label>
+            <input type="text" name="categoria" id="editar-cat" class="form-input" list="cats-list">
+            <datalist id="cats-list">
+              {% for cat in categorias %}<option value="{{ cat[0] }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unidad de Medida</label>
+            <select name="unidad" id="editar-unidad" class="form-select">
+              <option value="C/U">C/U — Unidad</option>
+              <option value="M">M — Metro</option>
+              <option value="KG">KG — Kilogramo</option>
+              <option value="L">L — Litro</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock Mínimo para Alerta</label>
+          <input type="number" name="stock_min" id="editar-min" class="form-input" min="0" placeholder="0">
+          <div class="info-box">💡 El sistema mostrará alerta ⚠️ cuando el stock llegue a este número.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editarModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL AJUSTE STOCK -->
+<div class="modal-overlay" id="ajusteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📦 Ajuste Manual de Stock</div>
+      <button class="modal-close" onclick="closeModal('ajusteModal')">✕</button>
+    </div>
+    <form method="POST" id="ajusteForm" action="">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Producto</label>
+          <input type="text" id="ajuste-nombre" class="form-input" readonly style="background:#f8fafc">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Stock actual (sistema)</label>
+            <input type="number" id="ajuste-actual" class="form-input" readonly style="background:#f8fafc">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nuevo stock real</label>
+            <input type="number" name="nuevo_stock" class="form-input" placeholder="Ingresa el stock real" min="0" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('ajusteModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Aplicar Ajuste</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function openEditar(id, desc, cat, unidad, min) {
+    document.getElementById('editar-desc').value   = desc;
+    document.getElementById('editar-cat').value    = cat;
+    document.getElementById('editar-unidad').value = unidad;
+    document.getElementById('editar-min').value    = min;
+    document.getElementById('editarForm').action   = `/stock/editar/${id}`;
+    openModal('editarModal');
+  }
+
+  function openAjuste(id, nombre, stock) {
+    document.getElementById('ajuste-nombre').value  = nombre;
+    document.getElementById('ajuste-actual').value  = stock;
+    document.getElementById('ajusteForm').action    = `/stock/ajuste/${id}`;
+    openModal('ajusteModal');
+  }
+</script>
+{% endblock %}

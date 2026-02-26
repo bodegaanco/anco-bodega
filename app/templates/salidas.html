@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Salidas — ANCO BODEGA{% endblock %}
+{% block page_title %}Registro de Salidas{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <form method="GET" style="display:flex;gap:10px;align-items:center;flex:1">
+    <select name="cuadrilla_id" class="form-select" style="max-width:200px" onchange="this.form.submit()">
+      <option value="">Todas las cuadrillas</option>
+      {% for c in cuadrillas %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('cuadrilla_id')|int == c.id }}>{{ c.nombre }}</option>{% endfor %}
+    </select>
+  </form>
+  <button onclick="openModal('salidaModal')" class="btn btn-primary">+ Nueva Salida</button>
+</div>
+
+<div class="card">
+  <table class="tbl">
+    <thead><tr><th>Fecha/Hora</th><th>Cuadrilla</th><th>Productos</th><th>Total</th><th>Notas</th></tr></thead>
+    <tbody>
+      {% for s in salidas %}
+      <tr>
+        <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %H:%M') }}</td>
+        <td><strong>{{ s.cuadrilla.nombre }}</strong></td>
+        <td style="font-size:12px;color:var(--text-muted)">
+          {% for item in s.items %}{{ item.producto.descripcion|truncate(25) }} × {{ item.cantidad }}{{ ', ' if not loop.last }}{% endfor %}
+        </td>
+        <td><span class="badge badge-blue">{{ s.items|length }} prod.</span></td>
+        <td style="color:var(--text-muted)">{{ s.notas or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Sin salidas registradas</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL SALIDA -->
+<div class="modal-overlay" id="salidaModal">
+  <div class="modal modal-wide">
+    <div class="modal-header"><div class="modal-title">📤 Nueva Salida de Material</div><button class="modal-close" onclick="closeModal('salidaModal')">✕</button></div>
+    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cuadrilla</label>
+            <select class="form-select" name="cuadrilla_id" required>
+              <option value="">Seleccionar...</option>
+              {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notas (opcional)</label>
+            <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
+          </div>
+        </div>
+        <label class="form-label">Productos a entregar</label>
+        <div id="salida-items">
+          <div class="item-row">
+            <select class="form-select" name="producto_id[]" required>
+              <option value="">Seleccionar producto...</option>
+              {% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} (Stock: {{ p.stock_bodega }})</option>{% endfor %}
+            </select>
+            <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1" required>
+            <span></span>
+          </div>
+        </div>
+        <button type="button" class="btn-add-more" onclick="addSalida()">+ Agregar otro producto</button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('salidaModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar Salida</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const opts = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;
+  function addSalida(){
+    const c=document.getElementById('salida-items');
+    const d=document.createElement('div');d.className='item-row';d.style.marginTop='8px';
+    d.innerHTML=`<select class="form-select" name="producto_id[]"><option value="">Seleccionar...</option>${opts}</select><input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>`;
+    c.appendChild(d);
+  }
+</script>
+{% endblock %}

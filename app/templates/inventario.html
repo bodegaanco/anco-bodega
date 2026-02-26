@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}Inventarios — ANCO BODEGA{% endblock %}
+{% block page_title %}Inventarios y Reajustes{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <span style="color:var(--text-muted);font-size:13px">Reajuste del stock real versus sistema</span>
+  <button onclick="openModal('inventarioModal')" class="btn btn-primary" style="margin-left:auto">+ Nuevo Inventario</button>
+</div>
+
+<!-- Historial -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📋 Historial de Inventarios</div>
+  </div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Fecha</th><th>Tipo</th><th>Productos</th><th>Diferencias</th><th>Registrado por</th></tr>
+    </thead>
+    <tbody>
+      {% for inv in inventarios %}
+      <tr>
+        <td style="color:var(--text-muted)">{{ inv.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+        <td>
+          {% if inv.tipo == 'bodega' %}
+            <span class="badge badge-warning">Bodega</span>
+          {% else %}
+            <span class="badge badge-blue">{{ inv.cuadrilla.nombre if inv.cuadrilla else 'Cuadrilla' }}</span>
+          {% endif %}
+        </td>
+        <td>{{ inv.items|length }} producto(s)</td>
+        <td>
+          {% set difs = inv.items|selectattr('diferencia','ne',0)|list %}
+          {% if difs %}
+            {% for item in difs %}
+              <span class="badge {{ 'badge-danger' if item.diferencia < 0 else 'badge-ok' }}" style="margin:1px">
+                {{ item.producto.descripcion|truncate(20) }}: {{ '+' if item.diferencia > 0 }}{{ item.diferencia }}
+              </span>
+            {% endfor %}
+          {% else %}
+            <span class="badge badge-ok">Sin diferencias</span>
+          {% endif %}
+        </td>
+        <td style="color:var(--text-muted)">{{ inv.usuario.nombre if inv.usuario else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Sin inventarios registrados aún</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL INVENTARIO -->
+<div class="modal-overlay" id="inventarioModal">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div class="modal-title">🔍 Registrar Inventario Físico</div>
+      <button class="modal-close" onclick="closeModal('inventarioModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('inventario.nuevo') }}">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo de inventario</label>
+            <select class="form-select" name="tipo" id="tipo-select" onchange="toggleCuadrilla(this.value)">
+              <option value="bodega">Bodega Central</option>
+              <option value="cuadrilla">Cuadrilla</option>
+            </select>
+          </div>
+          <div class="form-group" id="cuadrilla-field" style="display:none">
+            <label class="form-label">Cuadrilla</label>
+            <select class="form-select" name="cuadrilla_id">
+              <option value="">Seleccionar...</option>
+              {% for c in cuadrillas %}
+              <option value="{{ c.id }}">{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <label class="form-label">Conteo por producto (cantidad real contada)</label>
+        <div id="inv-items">
+          <div class="item-row">
+            <select class="form-select" name="producto_id[]">
+              <option value="">Seleccionar producto...</option>
+              {% for p in productos %}
+              <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} (Sistema: {{ p.stock_bodega }})</option>
+              {% endfor %}
+            </select>
+            <input type="number" class="form-input" name="cantidad_real[]" placeholder="Cant. real" min="0">
+            <span></span>
+          </div>
+        </div>
+        <button type="button" class="btn-add-more" onclick="addInv()">+ Agregar otro producto</button>
+        <div class="info-box">💡 El sistema comparará con el stock registrado y ajustará la diferencia automáticamente.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('inventarioModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Aplicar Inventario</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleCuadrilla(val) {
+    document.getElementById('cuadrilla-field').style.display = val === 'cuadrilla' ? 'block' : 'none';
+  }
+
+  const opts = `{% for p in productos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;
+
+  function addInv() {
+    const c = document.getElementById('inv-items');
+    const d = document.createElement('div');
+    d.className = 'item-row';
+    d.style.marginTop = '8px';
+    d.innerHTML = `
+      <select class="form-select" name="producto_id[]">
+        <option value="">Seleccionar producto...</option>${opts}
+      </select>
+      <input type="number" class="form-input" name="cantidad_real[]" placeholder="Cant. real" min="0">
+      <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
+    `;
+    c.appendChild(d);
+  }
+</script>
+{% endblock %}
