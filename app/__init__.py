@@ -33,7 +33,7 @@ def create_app():
     from app.routes.reportes    import reportes_bp
     from app.routes.maquinarias import maquinarias_bp
     from app.routes.export      import export_bp
-
+    from app.routes.analisis    import analisis_bp 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(stock_bp)
@@ -43,6 +43,7 @@ def create_app():
     app.register_blueprint(reportes_bp)
     app.register_blueprint(maquinarias_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(analisis_bp) 
 
     return app
 

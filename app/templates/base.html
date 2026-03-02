@@ -166,6 +166,7 @@
     <a class="nav-item {% if 'inventario' in request.endpoint %}active{% endif %}" href="{{ url_for('inventario.index') }}"><span class="icon">🔍</span> Inventarios</a>
     <a class="nav-item {% if 'maquinarias' in request.endpoint %}active{% endif %}" href="{{ url_for('maquinarias.index') }}"><span class="icon">🔧</span> Maquinarias</a>
     <a class="nav-item {% if 'reportes' in request.endpoint %}active{% endif %}" href="{{ url_for('reportes.index') }}"><span class="icon">📈</span> Reportes</a>
+    <a class="nav-item {% if 'analisis' in request.endpoint %}active{% endif %}" href="{{ url_for('analisis.index') }}"><span class="icon">📊</span> Análisis</a>
   </nav>
   <div class="sidebar-footer">
     {{ current_user.nombre }} · {{ current_user.rol }}<br>
