@@ -24,6 +24,7 @@ def create_app():
     login_manager.login_message = 'Debes iniciar sesión para acceder.'
 
     # Registrar blueprints
+    from app.routes.analisis import analisis_bp
     from app.routes.auth        import auth_bp
     from app.routes.main        import main_bp
     from app.routes.stock       import stock_bp
@@ -43,6 +44,7 @@ def create_app():
     app.register_blueprint(reportes_bp)
     app.register_blueprint(maquinarias_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(analisis_bp)
 
     return app
 
