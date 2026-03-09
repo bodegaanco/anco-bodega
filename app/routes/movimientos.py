@@ -177,7 +177,8 @@ def anular_salida(id):
     db.session.commit()
     flash(f'✅ Salida anulada correctamente. Stock revertido.', 'success')
     return redirect(url_for('movimientos.salidas'))
-
+    
+# ── Movimientos anular ─────────────────────────────────────────────────────────────────
 
 @movimientos_bp.route('/rendiciones/anular/<int:id>', methods=['POST'])
 @login_required
@@ -211,3 +212,16 @@ def anular_rendicion(id):
     flash(f'✅ Rendición OT {rendicion.numero_ot} anulada. Stock revertido.', 'success')
     return redirect(url_for('movimientos.rendiciones'))
 
+
+# ── Revisar OT ─────────────────────────────────────────────────────────────────
+
+@movimientos_bp.route('/rendiciones/revisar/<int:id>', methods=['POST'])
+@login_required
+def revisar_rendicion(id):
+    rendicion = Rendicion.query.get_or_404(id)
+    if not rendicion.anulada:
+        rendicion.revisada     = True
+        rendicion.revisada_por = current_user.nombre
+        db.session.commit()
+        flash(f'✅ OT {rendicion.numero_ot} marcada como revisada', 'success')
+    return redirect(url_for('movimientos.rendiciones'))
