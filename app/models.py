@@ -140,6 +140,8 @@ class Rendicion(db.Model):
     items        = db.relationship('RendicionItem', backref='rendicion', lazy=True)
     anulada      = db.Column(db.Boolean, default=False)
     motivo_anulacion = db.Column(db.String(200))
+    revisada         = db.Column(db.Boolean, default=False)
+    revisada_por     = db.Column(db.String(100))
 
 
 class RendicionItem(db.Model):
