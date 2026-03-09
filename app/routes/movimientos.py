@@ -147,3 +147,67 @@ def historial():
         salidas = Salida.query.order_by(Salida.creado_en.desc()).limit(50).all()
     return render_template('historial.html',
         salidas=salidas, cuadrillas=cuadrillas, cuadrilla=cuadrilla)
+
+
+@movimientos_bp.route('/salidas/anular/<int:id>', methods=['POST'])
+@login_required
+def anular_salida(id):
+    salida = Salida.query.get_or_404(id)
+    motivo = request.form.get('motivo', 'Sin motivo')
+
+    if salida.anulada:
+        flash('Esta salida ya fue anulada', 'error')
+        return redirect(url_for('movimientos.salidas'))
+
+    # Revertir stock — devolver a bodega y quitar de cuadrilla
+    for item in salida.items:
+        producto = Producto.query.get(item.producto_id)
+        if producto:
+            producto.stock_bodega += item.cantidad
+
+        sc = StockCuadrilla.query.filter_by(
+            cuadrilla_id=salida.cuadrilla_id,
+            producto_id=item.producto_id
+        ).first()
+        if sc:
+            sc.cantidad = max(0, sc.cantidad - item.cantidad)
+
+    salida.anulada          = True
+    salida.motivo_anulacion = motivo
+    db.session.commit()
+    flash(f'✅ Salida anulada correctamente. Stock revertido.', 'success')
+    return redirect(url_for('movimientos.salidas'))
+
+
+@movimientos_bp.route('/rendiciones/anular/<int:id>', methods=['POST'])
+@login_required
+def anular_rendicion(id):
+    rendicion = Rendicion.query.get_or_404(id)
+    motivo    = request.form.get('motivo', 'Sin motivo')
+
+    if rendicion.anulada:
+        flash('Esta rendición ya fue anulada', 'error')
+        return redirect(url_for('movimientos.rendiciones'))
+
+    # Revertir stock — devolver materiales a la cuadrilla
+    for item in rendicion.items:
+        sc = StockCuadrilla.query.filter_by(
+            cuadrilla_id=rendicion.cuadrilla_id,
+            producto_id=item.producto_id
+        ).first()
+        if sc:
+            sc.cantidad += item.cantidad_usada
+        else:
+            sc = StockCuadrilla(
+                cuadrilla_id=rendicion.cuadrilla_id,
+                producto_id=item.producto_id,
+                cantidad=item.cantidad_usada
+            )
+            db.session.add(sc)
+
+    rendicion.anulada          = True
+    rendicion.motivo_anulacion = motivo
+    db.session.commit()
+    flash(f'✅ Rendición OT {rendicion.numero_ot} anulada. Stock revertido.', 'success')
+    return redirect(url_for('movimientos.rendiciones'))
+
