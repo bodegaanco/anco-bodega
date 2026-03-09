@@ -39,9 +39,7 @@
         <td style="color:var(--text-muted);font-size:12px">{{ p.notas or '—' }}</td>
         <td>
           <div style="display:flex;gap:6px">
-            <form method="POST" action="{{ url_for('maquinarias.devolver', prestamo_id=p.id) }}">
-              <button type="submit" class="btn btn-primary btn-sm">✅ Devuelto</button>
-            </form>
+            <button onclick="openDevolver({{ p.id }}, '{{ p.maquinaria.nombre }}')" class="btn btn-primary btn-sm">✅ Devuelto</button>
             <form method="POST" action="{{ url_for('maquinarias.eliminar_prestamo', prestamo_id=p.id) }}"
                   onsubmit="return confirm('¿Eliminar este registro?')">
               <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">🗑️</button>
@@ -70,14 +68,11 @@
     <tbody>
       {% for m in maquinarias %}
       {% set prestamo_activo = m.en_uso() %}
-
-      {# Determinar estado real: si está prestada, es "en uso" sin importar el campo estado #}
       {% if prestamo_activo %}
         {% set estado_real = 'en_uso' %}
       {% else %}
         {% set estado_real = m.estado or 'disponible' %}
       {% endif %}
-
       <tr class="{{ 'tbl-row-danger' if estado_real == 'fuera_servicio' else ('tbl-row-warning' if estado_real == 'mantencion' else '') }}">
         <td><strong>{{ m.nombre }}</strong></td>
         <td style="color:var(--text-muted);font-size:12px">{{ m.codigo or '—' }}</td>
@@ -93,8 +88,6 @@
             <span class="badge badge-danger">❌ Fuera de Servicio</span>
           {% endif %}
         </td>
-
-        <!-- CAMBIAR ESTADO (solo si no está prestada) -->
         <td>
           {% if not prestamo_activo %}
           <form method="POST" action="{{ url_for('maquinarias.cambiar_estado', id=m.id) }}" style="display:flex;gap:6px;align-items:center">
@@ -108,7 +101,6 @@
           <span style="font-size:11px;color:var(--text-muted)">No editable (en uso)</span>
           {% endif %}
         </td>
-
         <td>
           {% if not prestamo_activo %}
           <form method="POST" action="{{ url_for('maquinarias.desactivar', id=m.id) }}"
@@ -141,7 +133,7 @@
   </div>
   <table class="tbl">
     <thead>
-      <tr><th>Equipo</th><th>Cuadrilla</th><th>Entregado</th><th>Devuelto</th><th>Días</th></tr>
+      <tr><th>Equipo</th><th>Cuadrilla</th><th>Entregado</th><th>Devuelto</th><th>Días</th><th>Estado al devolver</th></tr>
     </thead>
     <tbody>
       {% for p in historial %}
@@ -152,6 +144,13 @@
         <td style="color:var(--text-muted)">{{ p.fecha_entrega.strftime('%d %b %Y') }}</td>
         <td style="color:var(--success);font-weight:600">{{ p.fecha_devol.strftime('%d %b %Y') }}</td>
         <td><span class="badge badge-gray">{{ dias }} día(s)</span></td>
+        <td style="font-size:12px;color:var(--text-muted)">
+          {% if p.nota_devolucion %}
+            <span style="color:var(--text)">{{ p.nota_devolucion }}</span>
+          {% else %}
+            —
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -229,7 +228,7 @@
           <label class="form-label">Notas (opcional)</label>
           <input type="text" name="notas" class="form-input" placeholder="Ej: Para emergencia sector norte">
         </div>
-        <div class="info-box">💡 Solo aparecen los equipos <strong>Disponibles</strong>. Los que están En Mantención o Fuera de Servicio no se pueden entregar.</div>
+        <div class="info-box">💡 Solo aparecen los equipos <strong>Disponibles</strong>.</div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" onclick="closeModal('prestarModal')">Cancelar</button>
@@ -238,4 +237,42 @@
     </form>
   </div>
 </div>
+
+<!-- MODAL DEVOLVER -->
+<div class="modal-overlay" id="devolverModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#2a9d8f">
+      <div class="modal-title">📥 Devolver — <span id="devolver-nombre"></span></div>
+      <button class="modal-close" onclick="closeModal('devolverModal')">✕</button>
+    </div>
+    <form method="POST" id="devolverForm" action="">
+      <div class="modal-body">
+        <div style="background:#e8f5f3;border-radius:6px;padding:12px;font-size:13px;color:#2a9d8f;font-weight:600;margin-bottom:16px">
+          ✅ Al confirmar, el equipo volverá al estado <strong>Disponible</strong>.
+        </div>
+        <div class="form-group">
+          <label class="form-label">¿En qué condiciones fue devuelto? <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+          <textarea name="nota_devolucion" class="form-input" rows="3"
+            placeholder="Ej: En buen estado, sin daños&#10;Ej: Requiere mantención, cable dañado&#10;Ej: Devuelto incompleto, falta accesorio..."
+            style="resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('devolverModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f">Confirmar Devolución</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function openDevolver(id, nombre) {
+    document.getElementById('devolver-nombre').textContent = nombre;
+    document.getElementById('devolverForm').action = `/maquinarias/devolver/${id}`;
+    openModal('devolverModal');
+  }
+</script>
 {% endblock %}
