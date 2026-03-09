@@ -219,9 +219,59 @@ def anular_rendicion(id):
 @login_required
 def revisar_rendicion(id):
     rendicion = Rendicion.query.get_or_404(id)
+    resultado = request.form.get('resultado')  # 'ok' o 'diferencia'
     if not rendicion.anulada:
-        rendicion.revisada     = True
+        rendicion.estado       = resultado
         rendicion.revisada_por = current_user.nombre
         db.session.commit()
-        flash(f'✅ OT {rendicion.numero_ot} marcada como revisada', 'success')
+        if resultado == 'ok':
+            flash(f'✅ OT {rendicion.numero_ot} confirmada correcta', 'success')
+        else:
+            flash(f'⚠️ OT {rendicion.numero_ot} marcada con diferencias — puedes editarla', 'warning')
     return redirect(url_for('movimientos.rendiciones'))
+
+
+@movimientos_bp.route('/rendiciones/editar/<int:id>', methods=['POST'])
+@login_required
+def editar_rendicion(id):
+    rendicion = Rendicion.query.get_or_404(id)
+    if rendicion.anulada:
+        flash('No se puede editar una OT anulada', 'error')
+        return redirect(url_for('movimientos.rendiciones'))
+
+    # Primero revertir stock actual de esta rendicion
+    for item in rendicion.items:
+        sc = StockCuadrilla.query.filter_by(
+            cuadrilla_id=rendicion.cuadrilla_id,
+            producto_id=item.producto_id
+        ).first()
+        if sc:
+            sc.cantidad += item.cantidad_usada
+        db.session.delete(item)
+
+    # Guardar nuevos items
+    productos_ids = request.form.getlist('producto_id[]')
+    cantidades    = request.form.getlist('cantidad[]')
+    for pid, cant in zip(productos_ids, cantidades):
+        if not pid or not cant:
+            continue
+        cant = int(cant)
+        item = RendicionItem(
+            rendicion_id=rendicion.id,
+            producto_id=int(pid),
+            cantidad_usada=cant
+        )
+        db.session.add(item)
+        # Descontar del stock cuadrilla con los nuevos valores
+        sc = StockCuadrilla.query.filter_by(
+            cuadrilla_id=rendicion.cuadrilla_id,
+            producto_id=int(pid)
+        ).first()
+        if sc:
+            sc.cantidad = max(0, sc.cantidad - cant)
+
+    rendicion.estado = 'pendiente'  # vuelve a pendiente para re-revisar
+    db.session.commit()
+    flash(f'✅ OT {rendicion.numero_ot} actualizada — vuelve a estado pendiente para re-revisar', 'success')
+    return redirect(url_for('movimientos.rendiciones'))
+
