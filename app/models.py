@@ -211,3 +211,5 @@ class PrestamoMaquinaria(db.Model):
 
     cuadrilla     = db.relationship('Cuadrilla')
     usuario       = db.relationship('Usuario')
+    nota_devolucion = db.Column(db.String(300))
+    
