@@ -9,6 +9,12 @@
       <option value="">Todas las cuadrillas</option>
       {% for c in cuadrillas %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('cuadrilla_id')|int == c.id }}>{{ c.nombre }}</option>{% endfor %}
     </select>
+    <select name="estado" class="form-select" style="max-width:160px" onchange="this.form.submit()">
+      <option value="">Todos los estados</option>
+      <option value="pendiente" {{ 'selected' if request.args.get('estado') == 'pendiente' }}>⏳ Pendientes</option>
+      <option value="revisada"  {{ 'selected' if request.args.get('estado') == 'revisada'  }}>✅ Revisadas</option>
+      <option value="anulada"   {{ 'selected' if request.args.get('estado') == 'anulada'   }}>✕ Anuladas</option>
+    </select>
   </form>
   <button onclick="openModal('otModal')" class="btn btn-primary">+ Nueva Rendición (OT)</button>
 </div>
@@ -39,55 +45,84 @@
   {% endfor %}
 {% endwith %}
 
+<!-- CONTADOR PENDIENTES -->
+{% set pendientes = rendiciones|rejectattr('anulada')|rejectattr('revisada')|list|length %}
+{% if pendientes > 0 %}
+<div style="background:#fff8e1;border:1.5px solid var(--warning);border-radius:8px;padding:12px 18px;margin-bottom:16px;font-size:13px;font-weight:600;color:#c67c00;display:flex;align-items:center;gap:10px">
+  ⏳ Tienes <strong>{{ pendientes }} OT(s) pendientes de revisión</strong>
+</div>
+{% endif %}
+
 <div class="card">
   <table class="tbl">
     <thead>
-      <tr><th>Fecha</th><th>N° OT</th><th>Cuadrilla</th><th>Productos usados</th><th>Total</th><th>Estado</th><th>Detalle</th></tr>
+      <tr>
+        <th>Fecha</th>
+        <th>N° OT</th>
+        <th>Cuadrilla</th>
+        <th>Productos usados</th>
+        <th>Items</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
     </thead>
-   <tbody>
-  {% for r in rendiciones %}
-  {% set ot_count = rendiciones|selectattr('numero_ot','equalto', r.numero_ot)|list|length %}
-  <tr style="{{ 'opacity:0.45' if r.anulada else ('' if not ot_count > 1 else 'background:#fff8e1') }}">
-    <td style="color:var(--text-muted)">{{ r.creado_en.strftime('%d %b %Y') }}</td>
-    <td>
-      <strong>{{ r.numero_ot }}</strong>
-      {% if ot_count > 1 and not r.anulada %}
-        <span class="badge badge-warning" style="margin-left:4px">⚠️ {{ ot_count }}x</span>
-      {% endif %}
-    </td>
-    <td>{{ r.cuadrilla.nombre }}</td>
-    <td style="font-size:12px;color:var(--text-muted)">
-      {% for item in r.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada }}{{ ', ' if not loop.last }}{% endfor %}
-    </td>
-    <td><span class="badge badge-ok">{{ r.items|length }} prod.</span></td>
-    <td>
-      {% if r.anulada %}
-        <span class="badge badge-danger">✕ Anulada</span>
-      {% elif r.revisada %}
-        <span class="badge badge-ok">✅ Revisada</span>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">por {{ r.revisada_por }}</div>
+    <tbody>
+      {% for r in rendiciones %}
+      {% set ot_count = rendiciones|selectattr('numero_ot','equalto', r.numero_ot)|list|length %}
+      <tr style="{{ 'opacity:0.4' if r.anulada else ('background:#f0fdf8' if r.revisada else ('background:#fff8e1' if ot_count > 1 else '')) }}">
+
+        <td style="color:var(--text-muted)">{{ r.creado_en.strftime('%d %b %Y') }}</td>
+
+        <td>
+          <strong>{{ r.numero_ot }}</strong>
+          {% if ot_count > 1 and not r.anulada %}
+            <span class="badge badge-warning" style="margin-left:4px" title="Esta OT aparece {{ ot_count }} veces">⚠️ {{ ot_count }}x</span>
+          {% endif %}
+        </td>
+
+        <td>{{ r.cuadrilla.nombre }}</td>
+
+        <td style="font-size:12px;color:var(--text-muted)">
+          {% for item in r.items %}
+            {{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada }}{{ ', ' if not loop.last }}
+          {% endfor %}
+        </td>
+
+        <td><span class="badge badge-ok">{{ r.items|length }} prod.</span></td>
+
+        <!-- ESTADO -->
+        <td>
+          {% if r.anulada %}
+            <span class="badge badge-danger">✕ Anulada</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px">{{ r.motivo_anulacion }}</div>
+          {% elif r.revisada %}
+            <span class="badge badge-ok">✅ Revisada</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px">por {{ r.revisada_por }}</div>
+          {% else %}
+            <span class="badge badge-warning">⏳ Pendiente</span>
+          {% endif %}
+        </td>
+
+        <!-- ACCIONES -->
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {% if not r.anulada and not r.revisada %}
+              <form method="POST" action="{{ url_for('movimientos.revisar_rendicion', id=r.id) }}">
+                <button type="submit" class="btn btn-primary btn-sm">✅ Revisar</button>
+              </form>
+              <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+            {% elif not r.anulada and r.revisada %}
+              <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+            {% endif %}
+            <button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver</button>
+          </div>
+        </td>
+
+      </tr>
       {% else %}
-        <span class="badge badge-warning">⏳ Pendiente</span>
-      {% endif %}
-    </td>
-    <td>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        {% if not r.anulada and not r.revisada %}
-          <form method="POST" action="{{ url_for('movimientos.revisar_rendicion', id=r.id) }}">
-            <button type="submit" class="btn btn-primary btn-sm">✅ Revisar</button>
-          </form>
-          <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
-        {% elif not r.anulada %}
-          <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
-        {% endif %}
-        <button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver</button>
-      </div>
-    </td>
-  </tr>
-  {% else %}
-  <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
-  {% endfor %}
-</tbody>
+      <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
+      {% endfor %}
+    </tbody>
   </table>
 </div>
 
@@ -108,9 +143,10 @@
           </div>
           <div class="form-group">
             <label class="form-label">N° Orden de Trabajo</label>
-            <input type="text" name="numero_ot" id="ot-numero" class="form-input" placeholder="Ej: OT-148" required oninput="checkDuplicado(this.value)">
+            <input type="text" name="numero_ot" id="ot-numero" class="form-input"
+              placeholder="Ej: OT-148" required oninput="checkDuplicado(this.value)">
             <div id="ot-warn" style="display:none;background:#fff8e1;border-radius:5px;padding:7px 10px;font-size:12px;color:#c67c00;font-weight:600;margin-top:6px">
-              ⚠️ Esta OT ya existe en el sistema — revisa antes de guardar
+              ⚠️ Esta OT ya existe — revisa antes de guardar
             </div>
           </div>
         </div>
@@ -155,7 +191,7 @@
     <form method="POST" id="anularOTForm" action="">
       <div class="modal-body">
         <div style="background:#ffeaea;border-radius:6px;padding:12px;font-size:13px;color:#e63946;font-weight:600;margin-bottom:14px">
-          ⚠️ La OT quedará marcada como ANULADA y los materiales se devolverán al stock de la cuadrilla automáticamente.
+          ⚠️ La OT quedará ANULADA y los materiales se devolverán al stock de la cuadrilla automáticamente.
         </div>
         <div class="form-group">
           <label class="form-label">Motivo de anulación</label>
@@ -186,6 +222,8 @@
       cuadrilla: '{{ r.cuadrilla.nombre }}',
       fecha: '{{ r.creado_en.strftime("%d %b %Y") }}',
       anulada: {{ 'true' if r.anulada else 'false' }},
+      revisada: {{ 'true' if r.revisada else 'false' }},
+      revisada_por: '{{ r.revisada_por or "" }}',
       items: [{% for i in r.items %}{ desc: '{{ i.producto.descripcion|replace("'","\\'")|truncate(40) }}', cant: {{ i.cantidad_usada }}, unidad: '{{ i.producto.unidad }}' }{{ ',' if not loop.last }}{% endfor %}]
     }{{ ',' if not loop.last }}
     {% endfor %}
@@ -194,13 +232,16 @@
   function verOT(id) {
     const d = otData[id];
     document.getElementById('ver-ot-title').textContent = `OT ${d.ot} — ${d.cuadrilla}`;
+    let estadoBadge = '';
+    if (d.anulada) estadoBadge = `<div style="background:#ffeaea;border-radius:6px;padding:10px;color:#e63946;font-weight:600;margin-bottom:12px">✕ OT Anulada</div>`;
+    else if (d.revisada) estadoBadge = `<div style="background:#e8f5f3;border-radius:6px;padding:10px;color:#2a9d8f;font-weight:600;margin-bottom:12px">✅ Revisada por ${d.revisada_por}</div>`;
     let rows = d.items.map(i => `<tr><td>${i.desc}</td><td><strong>${i.cant} ${i.unidad}</strong></td></tr>`).join('');
     document.getElementById('ver-ot-body').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div style="background:#f8fafc;border-radius:6px;padding:12px"><div class="form-label" style="margin-bottom:4px">N° OT</div><strong>${d.ot}</strong></div>
         <div style="background:#f8fafc;border-radius:6px;padding:12px"><div class="form-label" style="margin-bottom:4px">Fecha</div><strong>${d.fecha}</strong></div>
       </div>
-      ${d.anulada ? '<div style="background:#ffeaea;border-radius:6px;padding:10px;color:#e63946;font-weight:600;margin-bottom:12px">✕ Esta OT fue anulada</div>' : ''}
+      ${estadoBadge}
       <table class="tbl"><thead><tr><th>Producto</th><th>Cantidad usada</th></tr></thead><tbody>${rows}</tbody></table>`;
     openModal('verOTModal');
   }
