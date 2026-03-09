@@ -44,36 +44,50 @@
     <thead>
       <tr><th>Fecha</th><th>N° OT</th><th>Cuadrilla</th><th>Productos usados</th><th>Total</th><th>Estado</th><th>Detalle</th></tr>
     </thead>
-    <tbody>
-      {% for r in rendiciones %}
-      {% set ot_count = rendiciones|selectattr('numero_ot','equalto', r.numero_ot)|list|length %}
-      <tr style="{{ 'opacity:0.45' if r.anulada else ('' if not ot_count > 1 else 'background:#fff8e1') }}">
-        <td style="color:var(--text-muted)">{{ r.creado_en.strftime('%d %b %Y') }}</td>
-        <td>
-          <strong>{{ r.numero_ot }}</strong>
-          {% if ot_count > 1 and not r.anulada %}
-            <span class="badge badge-warning" style="margin-left:4px">⚠️ {{ ot_count }}x</span>
-          {% endif %}
-        </td>
-        <td>{{ r.cuadrilla.nombre }}</td>
-        <td style="font-size:12px;color:var(--text-muted)">
-          {% for item in r.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada }}{{ ', ' if not loop.last }}{% endfor %}
-        </td>
-        <td><span class="badge badge-ok">{{ r.items|length }} prod.</span></td>
-        <td>
-          {% if r.anulada %}
-            <span class="badge badge-danger">✕ Anulada</span>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:3px">{{ r.motivo_anulacion }}</div>
-          {% else %}
-            <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
-          {% endif %}
-        </td>
-        <td><button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver OT</button></td>
-      </tr>
+   <tbody>
+  {% for r in rendiciones %}
+  {% set ot_count = rendiciones|selectattr('numero_ot','equalto', r.numero_ot)|list|length %}
+  <tr style="{{ 'opacity:0.45' if r.anulada else ('' if not ot_count > 1 else 'background:#fff8e1') }}">
+    <td style="color:var(--text-muted)">{{ r.creado_en.strftime('%d %b %Y') }}</td>
+    <td>
+      <strong>{{ r.numero_ot }}</strong>
+      {% if ot_count > 1 and not r.anulada %}
+        <span class="badge badge-warning" style="margin-left:4px">⚠️ {{ ot_count }}x</span>
+      {% endif %}
+    </td>
+    <td>{{ r.cuadrilla.nombre }}</td>
+    <td style="font-size:12px;color:var(--text-muted)">
+      {% for item in r.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada }}{{ ', ' if not loop.last }}{% endfor %}
+    </td>
+    <td><span class="badge badge-ok">{{ r.items|length }} prod.</span></td>
+    <td>
+      {% if r.anulada %}
+        <span class="badge badge-danger">✕ Anulada</span>
+      {% elif r.revisada %}
+        <span class="badge badge-ok">✅ Revisada</span>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">por {{ r.revisada_por }}</div>
       {% else %}
-      <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
-      {% endfor %}
-    </tbody>
+        <span class="badge badge-warning">⏳ Pendiente</span>
+      {% endif %}
+    </td>
+    <td>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        {% if not r.anulada and not r.revisada %}
+          <form method="POST" action="{{ url_for('movimientos.revisar_rendicion', id=r.id) }}">
+            <button type="submit" class="btn btn-primary btn-sm">✅ Revisar</button>
+          </form>
+          <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+        {% elif not r.anulada %}
+          <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+        {% endif %}
+        <button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver</button>
+      </div>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
+  {% endfor %}
+</tbody>
   </table>
 </div>
 
