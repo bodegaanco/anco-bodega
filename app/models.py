@@ -113,6 +113,8 @@ class Salida(db.Model):
 
     usuario      = db.relationship('Usuario')
     items        = db.relationship('SalidaItem', backref='salida', lazy=True)
+    anulada      = db.Column(db.Boolean, default=False)
+    motivo_anulacion = db.Column(db.String(200)
 
 
 class SalidaItem(db.Model):
@@ -136,6 +138,8 @@ class Rendicion(db.Model):
 
     usuario      = db.relationship('Usuario')
     items        = db.relationship('RendicionItem', backref='rendicion', lazy=True)
+    anulada      = db.Column(db.Boolean, default=False)
+    motivo_anulacion = db.Column(db.String(200))
 
 
 class RendicionItem(db.Model):
