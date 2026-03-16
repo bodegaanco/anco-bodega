@@ -47,7 +47,10 @@
 <!-- MODAL NUEVA SALIDA -->
 <div class="modal-overlay" id="salidaModal">
   <div class="modal modal-wide">
-    <div class="modal-header"><div class="modal-title">📤 Nueva Salida de Material</div><button class="modal-close" onclick="closeModal('salidaModal')">✕</button></div>
+    <div class="modal-header">
+      <div class="modal-title">📤 Nueva Salida de Material</div>
+      <button class="modal-close" onclick="closeModal('salidaModal')">✕</button>
+    </div>
     <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}">
       <div class="modal-body">
         <div class="form-row">
@@ -66,9 +69,11 @@
         <label class="form-label">Productos a entregar</label>
         <div id="salida-items">
           <div class="item-row">
-            <select class="form-select" name="producto_id[]" required>
-              <option value="">Seleccionar producto...</option>
-              {% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} (Stock: {{ p.stock_bodega }})</option>{% endfor %}
+            <select class="form-select producto-select" name="producto_id[]" required>
+              <option value="">Buscar producto...</option>
+              {% for p in productos_select | default([]) %}
+              <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} (Stock: {{ p.stock_bodega }})</option>
+              {% endfor %}
             </select>
             <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1" required>
             <span></span>
@@ -84,7 +89,7 @@
   </div>
 </div>
 
-<!-- MODAL ANULAR SALIDA -->
+<!-- MODAL ANULAR -->
 <div class="modal-overlay" id="anularModal">
   <div class="modal">
     <div class="modal-header" style="background:#e63946">
@@ -111,21 +116,45 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
-  const opts = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;
+  const opts = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} (Stock: {{ p.stock_bodega }})</option>{% endfor %}`;
+
+  function initSelect2Modal() {
+    $('#salidaModal .producto-select').each(function() {
+      if (!$(this).hasClass('select2-hidden-accessible')) {
+        $(this).select2({
+          placeholder: 'Buscar producto...',
+          allowClear: true,
+          width: '100%',
+          dropdownParent: $('#salidaModal')
+        });
+      }
+    });
+  }
+
+  // Sobreescribir openModal solo para salidaModal
+  const _baseOpen = window.openModal;
+  window.openModal = function(id) {
+    _baseOpen(id);
+    if (id === 'salidaModal') {
+      setTimeout(initSelect2Modal, 150);
+    }
+  };
 
   function addSalida() {
     const c = document.getElementById('salida-items');
     const d = document.createElement('div');
     d.className = 'item-row';
     d.style.marginTop = '8px';
-    d.innerHTML = `<select class="form-select" name="producto_id[]"><option value="">Seleccionar...</option>${opts}</select><input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>`;
+    d.innerHTML = `<select class="form-select producto-select" name="producto_id[]"><option value="">Buscar producto...</option>${opts}</select><input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>`;
     c.appendChild(d);
+    setTimeout(initSelect2Modal, 50);
   }
 
   function openAnular(id) {
     document.getElementById('anularForm').action = `/movimientos/salidas/anular/${id}`;
-    openModal('anularModal');
+    _baseOpen('anularModal');
   }
 </script>
 {% endblock %}
