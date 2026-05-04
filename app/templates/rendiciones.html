@@ -9,20 +9,26 @@
       <option value="">Todas las cuadrillas</option>
       {% for c in cuadrillas %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('cuadrilla_id')|int == c.id }}>{{ c.nombre }}</option>{% endfor %}
     </select>
+    <select name="estado" class="form-select" style="max-width:170px" onchange="this.form.submit()">
+      <option value="">Todos los estados</option>
+      <option value="pendiente"   {{ 'selected' if request.args.get('estado') == 'pendiente'  }}>⏳ Pendientes</option>
+      <option value="ok"          {{ 'selected' if request.args.get('estado') == 'ok'         }}>✅ Confirmadas OK</option>
+      <option value="diferencia"  {{ 'selected' if request.args.get('estado') == 'diferencia' }}>⚠️ Con diferencias</option>
+      <option value="anulada"     {{ 'selected' if request.args.get('estado') == 'anulada'    }}>✕ Anuladas</option>
+    </select>
   </form>
   <button onclick="openModal('otModal')" class="btn btn-primary">+ Nueva Rendición (OT)</button>
 </div>
 
-{# ── Alerta de OT Duplicada ─────────────────────────────────────────────── #}
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages %}
     {% if category == 'duplicado' %}
     <div style="background:#fff8e1;border:2px solid var(--warning);border-radius:10px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
       <div>
         <div style="font-weight:700;color:#c67c00;font-size:14px;margin-bottom:4px">⚠️ Orden de Trabajo Duplicada</div>
-        <div style="font-size:13px;color:var(--text)">{{ message|safe }}</div>
+        <div style="font-size:13px;">{{ message|safe }}</div>
       </div>
-      <form method="POST" action="{{ url_for('movimientos.nueva_rendicion') }}" id="forzarForm" style="flex-shrink:0">
+      <form method="POST" action="{{ url_for('movimientos.nueva_rendicion') }}" style="flex-shrink:0">
         <input type="hidden" name="cuadrilla_id" value="{{ request.args.get('cuadrilla_id','') }}">
         <input type="hidden" name="numero_ot" value="{{ request.args.get('ot_duplicada','') }}">
         <input type="hidden" name="forzar" value="1">
@@ -40,21 +46,42 @@
   {% endfor %}
 {% endwith %}
 
+{% set n_pendientes  = rendiciones|selectattr('estado','equalto','pendiente')|rejectattr('anulada')|list|length %}
+{% set n_diferencias = rendiciones|selectattr('estado','equalto','diferencia')|list|length %}
+{% if n_pendientes > 0 or n_diferencias > 0 %}
+<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+  {% if n_pendientes > 0 %}
+  <div style="background:#fff8e1;border:1.5px solid var(--warning);border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;color:#c67c00">
+    ⏳ {{ n_pendientes }} OT(s) pendientes de revisión
+  </div>
+  {% endif %}
+  {% if n_diferencias > 0 %}
+  <div style="background:#fff0e0;border:1.5px solid #f4a261;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;color:#e07020">
+    ⚠️ {{ n_diferencias }} OT(s) con diferencias — requieren corrección
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card">
   <table class="tbl">
     <thead>
-      <tr><th>Fecha</th><th>N° OT</th><th>Cuadrilla</th><th>Productos usados</th><th>Total</th><th>Detalle</th></tr>
+      <tr><th>Fecha</th><th>N° OT</th><th>Cuadrilla</th><th>Productos usados</th><th>Items</th><th>Estado</th><th>Acciones</th></tr>
     </thead>
     <tbody>
       {% for r in rendiciones %}
-      {# Marcar filas de OT con número repetido #}
       {% set ot_count = rendiciones|selectattr('numero_ot','equalto', r.numero_ot)|list|length %}
-      <tr {% if ot_count > 1 %}style="background:#fff8e1"{% endif %}>
+      <tr style="
+        {% if r.anulada %}opacity:0.4
+        {% elif r.estado == 'ok' %}background:#f0fdf8
+        {% elif r.estado == 'diferencia' %}background:#fff8e1
+        {% elif ot_count > 1 %}background:#fef3f3
+        {% endif %}">
         <td style="color:var(--text-muted)">{{ r.creado_en.strftime('%d %b %Y') }}</td>
         <td>
           <strong>{{ r.numero_ot }}</strong>
-          {% if ot_count > 1 %}
-            <span class="badge badge-warning" style="margin-left:4px" title="Esta OT aparece {{ ot_count }} veces">⚠️ {{ ot_count }}x</span>
+          {% if ot_count > 1 and not r.anulada %}
+            <span class="badge badge-warning" style="margin-left:4px">⚠️ {{ ot_count }}x</span>
           {% endif %}
         </td>
         <td>{{ r.cuadrilla.nombre }}</td>
@@ -62,57 +89,125 @@
           {% for item in r.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada }}{{ ', ' if not loop.last }}{% endfor %}
         </td>
         <td><span class="badge badge-ok">{{ r.items|length }} prod.</span></td>
-        <td><button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver OT</button></td>
+        <td>
+          {% if r.anulada %}
+            <span class="badge badge-danger">✕ Anulada</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px">{{ r.motivo_anulacion }}</div>
+          {% elif r.estado == 'ok' %}
+            <span class="badge badge-ok">✅ OK</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">por {{ r.revisada_por }}</div>
+          {% elif r.estado == 'diferencia' %}
+            <span class="badge badge-warning">⚠️ Con diferencias</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">por {{ r.revisada_por }}</div>
+          {% else %}
+            <span class="badge badge-warning">⏳ Pendiente</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {% if not r.anulada %}
+              {% if r.estado == 'pendiente' %}
+                <button onclick="openRevisar({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-primary btn-sm">Revisar</button>
+                <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+              {% elif r.estado == 'diferencia' %}
+                <button onclick="openEditar({{ r.id }}, '{{ r.numero_ot }}', {{ r.cuadrilla_id }})" class="btn btn-warning btn-sm">✏️ Editar</button>
+                <button onclick="openRevisar({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-outline btn-sm">Re-revisar</button>
+                <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+              {% elif r.estado == 'ok' %}
+                <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+              {% endif %}
+            {% endif %}
+            <button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver</button>
+          </div>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
+      <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
-<!-- MODAL NUEVA OT -->
+<!-- MODAL NUEVA OT CON CHECKBOXES -->
 <div class="modal-overlay" id="otModal">
-  <div class="modal modal-wide">
+  <div class="modal" style="width:700px;max-width:98vw">
     <div class="modal-header"><div class="modal-title">📋 Nueva Orden de Trabajo</div><button class="modal-close" onclick="closeModal('otModal')">✕</button></div>
-    <form method="POST" action="{{ url_for('movimientos.nueva_rendicion') }}">
+    <form method="POST" action="{{ url_for('movimientos.nueva_rendicion') }}" id="otForm">
       <input type="hidden" name="forzar" value="0">
-      <div class="modal-body">
-        <div class="form-row">
-          <div class="form-group">
+      <div class="modal-body" style="padding:20px">
+
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Cuadrilla</label>
             <select class="form-select" name="cuadrilla_id" required>
               <option value="">Seleccionar...</option>
               {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom:0">
             <label class="form-label">N° Orden de Trabajo</label>
             <input type="text" name="numero_ot" id="ot-numero" class="form-input"
-              placeholder="Ej: OT-148" required
-              oninput="checkDuplicado(this.value)">
+              placeholder="Ej: OT-148" required oninput="checkDuplicado(this.value)">
             <div id="ot-warn" style="display:none;background:#fff8e1;border-radius:5px;padding:7px 10px;font-size:12px;color:#c67c00;font-weight:600;margin-top:6px">
-              ⚠️ Esta OT ya existe en el sistema — revisa antes de guardar
+              ⚠️ Esta OT ya existe — revisa antes de guardar
             </div>
           </div>
         </div>
-        <label class="form-label">Productos usados en esta OT</label>
-        <div id="ot-items">
-          <div class="item-row">
-            <select class="form-select" name="producto_id[]" required>
-              <option value="">Seleccionar producto...</option>
-              {% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}
-            </select>
-            <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1" required>
-            <span></span>
-          </div>
+
+        <!-- BUSCADOR -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <label class="form-label" style="margin-bottom:0;white-space:nowrap">Materiales usados</label>
+          <input type="text" id="buscadorOT" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarProductosOT(this.value)">
+          <button type="button" onclick="marcarTodosOT()" class="btn btn-outline btn-sm">Marcar todos</button>
+          <button type="button" onclick="desmarcarTodosOT()" class="btn btn-outline btn-sm">Limpiar</button>
         </div>
-        <button type="button" class="btn-add-more" onclick="addOT()">+ Agregar otro producto</button>
-        <div class="info-box">💡 El sistema descuenta automáticamente del stock de la cuadrilla.</div>
+
+        <div id="contadorOT" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">
+          0 productos seleccionados
+        </div>
+
+        <!-- LISTA CON CHECKBOXES -->
+        <div style="max-height:360px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
+              <tr>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:36px;text-align:center">✓</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cantidad usada</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyOT">
+              {% for p in productos_select %}
+              <tr class="prod-row-ot" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}" style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;text-align:center">
+                  <input type="checkbox" class="chk-ot" data-pid="{{ p.id }}" data-unidad="{{ p.unidad }}"
+                    style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"
+                    onchange="toggleCantidadOT(this)">
+                </td>
+                <td style="padding:8px 12px">
+                  <div style="font-size:13px;font-weight:600;color:var(--text)">{{ p.descripcion }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">{{ p.codigo }} · {{ p.unidad }}</div>
+                </td>
+                <td style="padding:6px 12px;text-align:center">
+                  <input type="number" class="form-input cant-ot" data-pid="{{ p.id }}"
+                    placeholder="0" min="0.01" step="0.01"
+                    style="text-align:center;padding:5px 6px;font-size:13px;display:none"
+                    oninput="actualizarContadorOT()">
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="info-box" style="margin-top:10px">💡 El sistema descuenta automáticamente del stock de la cuadrilla.</div>
+        <div id="hiddenInputsOT"></div>
+
       </div>
       <div class="modal-footer">
+        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenOT"></div>
         <button type="button" class="btn btn-outline" onclick="closeModal('otModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Registrar OT Completa</button>
+        <button type="submit" class="btn btn-primary" onclick="return prepararOT()">Registrar OT Completa</button>
       </div>
     </form>
   </div>
@@ -126,26 +221,184 @@
     <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('verOTModal')">Cerrar</button></div>
   </div>
 </div>
+
+<!-- MODAL REVISAR OT -->
+<div class="modal-overlay" id="revisarModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#1a2b3c">
+      <div class="modal-title">🔍 Revisar OT — <span id="revisar-ot-num"></span></div>
+      <button class="modal-close" onclick="closeModal('revisarModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text);margin-bottom:20px">¿Los materiales de esta OT <strong>coinciden</strong> con lo que aparece en el otro sistema?</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <form method="POST" id="revisarOKForm" action="">
+          <input type="hidden" name="resultado" value="ok">
+          <button type="submit" class="btn btn-primary" style="width:100%;padding:16px;font-size:15px;background:#2a9d8f;border-color:#2a9d8f">
+            ✅ Sí, está OK<br><span style="font-size:11px;font-weight:400;opacity:0.85">Coincide con el sistema</span>
+          </button>
+        </form>
+        <form method="POST" id="revisarDifForm" action="">
+          <input type="hidden" name="resultado" value="diferencia">
+          <button type="submit" class="btn btn-warning" style="width:100%;padding:16px;font-size:15px">
+            ⚠️ Tiene diferencias<br><span style="font-size:11px;font-weight:400;opacity:0.85">Necesita corrección</span>
+          </button>
+        </form>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('revisarModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR OT -->
+<div class="modal-overlay" id="editarModal">
+  <div class="modal modal-wide">
+    <div class="modal-header" style="background:#e07020">
+      <div class="modal-title">✏️ Editar OT — <span id="editar-ot-num"></span></div>
+      <button class="modal-close" onclick="closeModal('editarModal')">✕</button>
+    </div>
+    <form method="POST" id="editarForm" action="">
+      <div class="modal-body">
+        <div style="background:#fff8e1;border-radius:6px;padding:10px 14px;font-size:12px;color:#c67c00;margin-bottom:14px">
+          ⚠️ Al guardar, el stock se recalculará. La OT volverá a estado <strong>Pendiente</strong>.
+        </div>
+        <label class="form-label">Productos usados en esta OT</label>
+        <div id="editar-items"></div>
+        <button type="button" class="btn-add-more" onclick="addEditItem()">+ Agregar producto</button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editarModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL ANULAR OT -->
+<div class="modal-overlay" id="anularOTModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#e63946">
+      <div class="modal-title">⚠️ Anular Rendición OT</div>
+      <button class="modal-close" onclick="closeModal('anularOTModal')">✕</button>
+    </div>
+    <form method="POST" id="anularOTForm" action="">
+      <div class="modal-body">
+        <div style="background:#ffeaea;border-radius:6px;padding:12px;font-size:13px;color:#e63946;font-weight:600;margin-bottom:14px">
+          ⚠️ La OT quedará ANULADA y los materiales se devolverán al stock de la cuadrilla.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motivo de anulación</label>
+          <input type="text" name="motivo" class="form-input" placeholder="Ej: OT incorrecta, materiales mal ingresados..." required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('anularOTModal')">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Confirmar Anulación</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  // OTs existentes para validación en tiempo real
-  const otsExistentes = new Set([{% for r in rendiciones %}'{{ r.numero_ot }}'{{ ',' if not loop.last }}{% endfor %}]);
-
-  function checkDuplicado(val) {
-    const warn = document.getElementById('ot-warn');
-    warn.style.display = otsExistentes.has(val.trim().toUpperCase()) ? 'block' : 'none';
+  // ── CHECKBOXES OT ────────────────────────────────────────────
+  function filtrarProductosOT(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.prod-row-ot').forEach(row => {
+      row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
+    });
   }
 
-  // Datos para modal ver OT
+  function toggleCantidadOT(chk) {
+    const pid   = chk.dataset.pid;
+    const input = document.querySelector(`.cant-ot[data-pid="${pid}"]`);
+    if (chk.checked) {
+      input.style.display = 'block';
+      input.value = 1;
+      input.focus();
+      chk.closest('tr').style.background = '#f0f7ff';
+    } else {
+      input.style.display = 'none';
+      input.value = '';
+      chk.closest('tr').style.background = '';
+    }
+    actualizarContadorOT();
+  }
+
+  function actualizarContadorOT() {
+    const sel = document.querySelectorAll('.chk-ot:checked').length;
+    const cnt = document.getElementById('contadorOT');
+    cnt.style.display = sel > 0 ? 'block' : 'none';
+    cnt.textContent   = `${sel} producto(s) seleccionado(s)`;
+    let total = 0;
+    document.querySelectorAll('.chk-ot:checked').forEach(chk => {
+      total += parseFloat(document.querySelector(`.cant-ot[data-pid="${chk.dataset.pid}"]`).value) || 0;
+    });
+    document.getElementById('resumenOT').textContent =
+      sel > 0 ? `${sel} productos · ${total} unidades totales` : '';
+  }
+
+  function marcarTodosOT() {
+    document.querySelectorAll('.prod-row-ot:not([style*="display: none"]) .chk-ot').forEach(chk => {
+      if (!chk.checked) { chk.checked = true; toggleCantidadOT(chk); }
+    });
+  }
+
+  function desmarcarTodosOT() {
+    document.querySelectorAll('.chk-ot:checked').forEach(chk => {
+      chk.checked = false; toggleCantidadOT(chk);
+    });
+    document.getElementById('buscadorOT').value = '';
+    filtrarProductosOT('');
+  }
+
+  function prepararOT() {
+    const seleccionados = document.querySelectorAll('.chk-ot:checked');
+    if (seleccionados.length === 0) {
+      alert('Debes seleccionar al menos un producto.');
+      return false;
+    }
+    const cont = document.getElementById('hiddenInputsOT');
+    cont.innerHTML = '';
+    let valido = true;
+    seleccionados.forEach(chk => {
+      const pid  = chk.dataset.pid;
+      const cant = parseFloat(document.querySelector(`.cant-ot[data-pid="${pid}"]`).value);
+      if (!cant || cant <= 0) { valido = false; return; }
+      const ip = document.createElement('input');
+      ip.type = 'hidden'; ip.name = 'producto_id[]'; ip.value = pid;
+      cont.appendChild(ip);
+      const ic = document.createElement('input');
+      ic.type = 'hidden'; ic.name = 'cantidad[]'; ic.value = cant;
+      cont.appendChild(ic);
+    });
+    if (!valido) {
+      alert('Ingresa una cantidad válida para todos los productos seleccionados.');
+      return false;
+    }
+    return true;
+  }
+
+  // ── DUPLICADO ─────────────────────────────────────────────────
+  const otsExistentes = new Set([{% for r in rendiciones %}'{{ r.numero_ot }}'{{ ',' if not loop.last }}{% endfor %}]);
+  function checkDuplicado(val) {
+    document.getElementById('ot-warn').style.display = otsExistentes.has(val.trim().toUpperCase()) ? 'block' : 'none';
+  }
+
+  // ── VER OT ────────────────────────────────────────────────────
   const otData = {
     {% for r in rendiciones %}
     {{ r.id }}: {
       ot: '{{ r.numero_ot }}',
       cuadrilla: '{{ r.cuadrilla.nombre }}',
       fecha: '{{ r.creado_en.strftime("%d %b %Y") }}',
-      items: [{% for i in r.items %}{ desc: '{{ i.producto.descripcion|replace("'","\\'")|truncate(40) }}', cant: {{ i.cantidad_usada }}, unidad: '{{ i.producto.unidad }}' }{{ ',' if not loop.last }}{% endfor %}]
+      estado: '{{ r.estado }}',
+      anulada: {{ 'true' if r.anulada else 'false' }},
+      revisada_por: '{{ r.revisada_por or "" }}',
+      items: [{% for i in r.items %}{ id: {{ i.producto_id }}, desc: '{{ i.producto.descripcion|replace("'","\\'")|truncate(40) }}', cant: {{ i.cantidad_usada }}, unidad: '{{ i.producto.unidad }}', cod: '{{ i.producto.codigo }}' }{{ ',' if not loop.last }}{% endfor %}]
     }{{ ',' if not loop.last }}
     {% endfor %}
   };
@@ -153,31 +406,65 @@
   function verOT(id) {
     const d = otData[id];
     document.getElementById('ver-ot-title').textContent = `OT ${d.ot} — ${d.cuadrilla}`;
+    let badge = '';
+    if (d.anulada)                   badge = `<div style="background:#ffeaea;border-radius:6px;padding:10px;color:#e63946;font-weight:600;margin-bottom:12px">✕ OT Anulada</div>`;
+    else if (d.estado=='ok')         badge = `<div style="background:#e8f5f3;border-radius:6px;padding:10px;color:#2a9d8f;font-weight:600;margin-bottom:12px">✅ Revisada OK por ${d.revisada_por}</div>`;
+    else if (d.estado=='diferencia') badge = `<div style="background:#fff8e1;border-radius:6px;padding:10px;color:#c67c00;font-weight:600;margin-bottom:12px">⚠️ Con diferencias — por ${d.revisada_por}</div>`;
     let rows = d.items.map(i => `<tr><td>${i.desc}</td><td><strong>${i.cant} ${i.unidad}</strong></td></tr>`).join('');
     document.getElementById('ver-ot-body').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-        <div style="background:#f8fafc;border-radius:6px;padding:12px">
-          <div class="form-label" style="margin-bottom:4px">N° OT</div><strong>${d.ot}</strong>
-        </div>
-        <div style="background:#f8fafc;border-radius:6px;padding:12px">
-          <div class="form-label" style="margin-bottom:4px">Fecha</div><strong>${d.fecha}</strong>
-        </div>
+        <div style="background:#f8fafc;border-radius:6px;padding:12px"><div class="form-label">N° OT</div><strong>${d.ot}</strong></div>
+        <div style="background:#f8fafc;border-radius:6px;padding:12px"><div class="form-label">Fecha</div><strong>${d.fecha}</strong></div>
       </div>
-      <table class="tbl">
-        <thead><tr><th>Producto</th><th>Cantidad usada</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      ${badge}
+      <table class="tbl"><thead><tr><th>Producto</th><th>Cantidad usada</th></tr></thead><tbody>${rows}</tbody></table>`;
     openModal('verOTModal');
   }
 
-  const opts = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;
-  function addOT() {
-    const c = document.getElementById('ot-items');
+  function openRevisar(id, ot) {
+    document.getElementById('revisar-ot-num').textContent = ot;
+    const url = `/movimientos/rendiciones/revisar/${id}`;
+    document.getElementById('revisarOKForm').action  = url;
+    document.getElementById('revisarDifForm').action = url;
+    openModal('revisarModal');
+  }
+
+  const optsEdit = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;
+
+  function openEditar(id, ot, cuadrillaId) {
+    const d = otData[id];
+    document.getElementById('editar-ot-num').textContent = ot;
+    document.getElementById('editarForm').action = `/movimientos/rendiciones/editar/${id}`;
+    const cont = document.getElementById('editar-items');
+    cont.innerHTML = '';
+    d.items.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'item-row';
+      div.style.marginTop = i > 0 ? '8px' : '';
+      div.innerHTML = `
+        <select class="form-select" name="producto_id[]">
+          <option value="">Seleccionar...</option>${optsEdit}
+        </select>
+        <input type="number" class="form-input" name="cantidad[]" value="${item.cant}" min="0.01" step="0.01">
+        <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>`;
+      cont.appendChild(div);
+      div.querySelector('select').value = item.id;
+    });
+    openModal('editarModal');
+  }
+
+  function addEditItem() {
+    const c = document.getElementById('editar-items');
     const d = document.createElement('div');
     d.className = 'item-row';
     d.style.marginTop = '8px';
-    d.innerHTML = `<select class="form-select" name="producto_id[]"><option value="">Seleccionar...</option>${opts}</select><input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>`;
+    d.innerHTML = `<select class="form-select" name="producto_id[]"><option value="">Seleccionar...</option>${optsEdit}</select><input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>`;
     c.appendChild(d);
+  }
+
+  function openAnularOT(id) {
+    document.getElementById('anularOTForm').action = `/movimientos/rendiciones/anular/${id}`;
+    openModal('anularOTModal');
   }
 </script>
 {% endblock %}

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}ANCO BODEGA{% endblock %}</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
 <style>
   :root {
     --primary:#3E88D6; --primary-dark:#2a6ab8; --bg:#f0f4f8;
@@ -45,6 +46,7 @@
   .btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text-muted);}
   .btn-outline:hover{border-color:var(--primary);color:var(--primary);}
   .btn-danger{background:var(--danger);color:#fff;}
+  .btn-warning{background:var(--warning);color:#fff;}
   .btn-sm{padding:5px 10px;font-size:11px;}
 
   /* CARDS */
@@ -98,7 +100,7 @@
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
 
-  /* ITEM ROW (multi producto) */
+  /* ITEM ROW */
   .item-row{display:grid;grid-template-columns:1fr 90px 30px;gap:8px;align-items:center;margin-bottom:8px;}
   .btn-remove{background:none;border:none;color:var(--danger);font-size:22px;cursor:pointer;line-height:1;padding:0;width:30px;text-align:center;}
 
@@ -142,6 +144,17 @@
   .flash{padding:12px 20px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;}
   .flash-success{background:#e8f5f3;color:var(--success);border-left:4px solid var(--success);}
   .flash-error{background:#ffeaea;color:var(--danger);border-left:4px solid var(--danger);}
+  .flash-warning{background:#fff4e5;color:var(--warning);border-left:4px solid var(--warning);}
+
+  /* SELECT2 PERSONALIZACION */
+  .select2-container .select2-selection--single{height:38px!important;border:1.5px solid var(--border)!important;border-radius:6px!important;font-family:'Barlow',sans-serif!important;}
+  .select2-container .select2-selection--single .select2-selection__rendered{line-height:36px!important;padding-left:12px!important;color:var(--text)!important;font-size:13px!important;}
+  .select2-container .select2-selection--single .select2-selection__arrow{height:36px!important;}
+  .select2-container--open .select2-selection--single{border-color:var(--primary)!important;}
+  .select2-dropdown{border:1.5px solid var(--primary)!important;border-radius:6px!important;font-family:'Barlow',sans-serif!important;font-size:13px!important;z-index:9999!important;}
+  .select2-results__option--highlighted{background-color:var(--primary)!important;}
+  .select2-search--dropdown .select2-search__field{border:1.5px solid var(--border)!important;border-radius:4px!important;font-family:'Barlow',sans-serif!important;font-size:13px!important;padding:6px 10px!important;}
+  .select2-container{width:100%!important;}
 </style>
 </head>
 <body>
@@ -179,7 +192,6 @@
   <div class="topbar">
     <div class="topbar-title">{% block page_title %}{% endblock %}</div>
     <div class="topbar-right">
-      {% set alertas = namespace(count=0) %}
       <a class="alert-badge" href="{{ url_for('stock.index') }}?estado=alerta">⚠️ Ver alertas</a>
       <a class="btn btn-primary" href="{{ url_for('movimientos.salidas') }}">+ Nueva Salida</a>
       <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-sm">Salir</a>
@@ -192,21 +204,41 @@
         <div class="flash flash-{{ category }}">{{ message }}</div>
       {% endfor %}
     {% endwith %}
-
     {% block content %}{% endblock %}
   </div>
 </main>
 
-<!-- MODAL JS helpers -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
+
 <script>
   const OPTS = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }})</option>{% endfor %}`;
 
-  function openModal(id){ document.getElementById(id).classList.add('open'); }
+  function openModal(id){
+    document.getElementById(id).classList.add('open');
+    setTimeout(() => initSelect2(id), 100);
+  }
   function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 
   document.querySelectorAll('.modal-overlay').forEach(m => {
     m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); });
   });
+
+  function initSelect2(modalId) {
+    const scope = modalId ? document.getElementById(modalId) : document;
+    $(scope).find('select[name="producto_id[]"], select[name="producto_id"], select[name="maquinaria_id"]').each(function() {
+      if (!$(this).hasClass('select2-hidden-accessible')) {
+        $(this).select2({
+          placeholder: 'Buscar producto...',
+          allowClear: true,
+          width: '100%',
+          dropdownParent: $(this).closest('.modal-overlay').length
+            ? $(this).closest('.modal-overlay')
+            : $('body')
+        });
+      }
+    });
+  }
 
   function addItemRow(containerId){
     const c = document.getElementById(containerId);
@@ -220,7 +252,10 @@
       <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
     `;
     c.appendChild(d);
+    setTimeout(() => initSelect2(), 50);
   }
+
+  document.addEventListener('DOMContentLoaded', () => initSelect2());
 </script>
 {% block scripts %}{% endblock %}
 </body>

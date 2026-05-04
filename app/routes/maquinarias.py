@@ -64,8 +64,9 @@ def prestar():
 @login_required
 def devolver(prestamo_id):
     prestamo = PrestamoMaquinaria.query.get_or_404(prestamo_id)
-    prestamo.devuelta   = True
-    prestamo.fecha_devol = datetime.utcnow()
+    prestamo.devuelta        = True
+    prestamo.fecha_devol     = datetime.utcnow()
+    prestamo.nota_devolucion = request.form.get('nota_devolucion', '')
     db.session.commit()
     flash(f'✅ {prestamo.maquinaria.nombre} marcada como devuelta', 'success')
     return redirect(url_for('maquinarias.index'))

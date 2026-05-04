@@ -4,7 +4,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-# ─── USUARIOS ───────────────────────────────────────────────────────────────
+# ─── USUARIOS ──────────────────────────────────────a─────────────────────────
 class Usuario(UserMixin, db.Model):
     __tablename__ = 'usuarios'
     id         = db.Column(db.Integer, primary_key=True)
@@ -113,6 +113,8 @@ class Salida(db.Model):
 
     usuario      = db.relationship('Usuario')
     items        = db.relationship('SalidaItem', backref='salida', lazy=True)
+    anulada      = db.Column(db.Boolean, default=False)
+    motivo_anulacion = db.Column(db.String(200))
 
 
 class SalidaItem(db.Model):
@@ -136,6 +138,10 @@ class Rendicion(db.Model):
 
     usuario      = db.relationship('Usuario')
     items        = db.relationship('RendicionItem', backref='rendicion', lazy=True)
+    anulada      = db.Column(db.Boolean, default=False)
+    motivo_anulacion = db.Column(db.String(200))
+    estado           = db.Column(db.String(20), default='pendiente')  # pendiente / ok / diferencia
+    revisada_por     = db.Column(db.String(100))
 
 
 class RendicionItem(db.Model):
@@ -205,3 +211,5 @@ class PrestamoMaquinaria(db.Model):
 
     cuadrilla     = db.relationship('Cuadrilla')
     usuario       = db.relationship('Usuario')
+    nota_devolucion = db.Column(db.String(300))
+    
