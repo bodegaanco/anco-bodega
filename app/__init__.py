@@ -28,6 +28,7 @@ def create_app():
 
     # Registrar blueprints
     from app.routes.analisis    import analisis_bp
+    from app.routes.favoritos   import favoritos_bp
     from app.routes.auth        import auth_bp
     from app.routes.main        import main_bp
     from app.routes.stock       import stock_bp
@@ -48,6 +49,7 @@ def create_app():
     app.register_blueprint(maquinarias_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(analisis_bp)
+    app.register_blueprint(favoritos_bp)
 
     return app
 

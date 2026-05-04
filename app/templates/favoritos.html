@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Favoritos — ANCO BODEGA{% endblock %}
+{% block page_title %}⭐ Productos Favoritos{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="grid-2">
+
+  <!-- LISTA DE FAVORITOS ACTUALES -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⭐ Favoritos activos</div>
+      <span class="badge badge-blue">{{ favoritos|length }} productos</span>
+    </div>
+    {% if favoritos %}
+    <table class="tbl">
+      <thead><tr><th>Producto</th><th>Unidad</th><th>Acción</th></tr></thead>
+      <tbody>
+        {% for f in favoritos %}
+        <tr>
+          <td>
+            <strong>{{ f.producto.descripcion }}</strong>
+            <div style="font-size:11px;color:var(--text-muted)">{{ f.producto.codigo }}</div>
+          </td>
+          <td><span class="badge badge-gray">{{ f.producto.unidad }}</span></td>
+          <td>
+            <form method="POST" action="{{ url_for('favoritos.quitar', producto_id=f.producto_id) }}">
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">✕ Quitar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:30px;text-align:center;color:var(--text-muted)">
+      Sin favoritos aún — agrega productos desde la lista de la derecha
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- AGREGAR PRODUCTOS -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📦 Agregar a favoritos</div>
+    </div>
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border)">
+      <input type="text" id="buscadorFav" class="form-input" placeholder="🔍 Buscar producto..." oninput="filtrarFav(this.value)">
+    </div>
+    <div style="max-height:480px;overflow-y:auto">
+      <table class="tbl">
+        <thead><tr><th>Producto</th><th>Acción</th></tr></thead>
+        <tbody id="tbodyFav">
+          {% for p in productos %}
+          <tr class="fav-row" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}">
+            <td>
+              <strong>{{ p.descripcion }}</strong>
+              <div style="font-size:11px;color:var(--text-muted)">{{ p.codigo }} · {{ p.unidad }}</div>
+            </td>
+            <td>
+              {% if p.id in fav_ids %}
+                <span class="badge badge-ok">⭐ En favoritos</span>
+              {% else %}
+                <form method="POST" action="{{ url_for('favoritos.agregar', producto_id=p.id) }}">
+                  <button type="submit" class="btn btn-primary btn-sm">+ Agregar</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:16px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">💡</span>
+      <div>
+        <strong>¿Cómo usar los favoritos?</strong>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+          Al crear una Salida o una OT, aparecerá el botón <strong>⭐ Cargar Favoritos</strong> que pre-marcará automáticamente estos productos — solo tendrás que ingresar las cantidades.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  function filtrarFav(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.fav-row').forEach(row => {
+      row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
+    });
+  }
+</script>
+{% endblock %}

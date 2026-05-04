@@ -160,6 +160,7 @@
           <input type="text" id="buscadorOT" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarProductosOT(this.value)">
           <button type="button" onclick="marcarTodosOT()" class="btn btn-outline btn-sm">Marcar todos</button>
           <button type="button" onclick="desmarcarTodosOT()" class="btn btn-outline btn-sm">Limpiar</button>
+          <button type="button" onclick="cargarFavoritosOT()" class="btn btn-outline btn-sm" style="color:#f4a261;border-color:#f4a261">⭐ Favoritos</button>
         </div>
 
         <div id="contadorOT" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">
@@ -380,6 +381,17 @@
       return false;
     }
     return true;
+  }
+
+  async function cargarFavoritosOT() {
+    const res  = await fetch("/favoritos/api");
+    const favs = await res.json();
+    if (favs.length === 0) { alert("No tienes favoritos configurados. Ve a ⭐ Favoritos en el menú para agregarlos."); return; }
+    desmarcarTodosOT();
+    favs.forEach(f => {
+      const chk = document.querySelector(`.chk-ot[data-pid="${f.id}"]`);
+      if (chk && !chk.checked) { chk.checked = true; toggleCantidadOT(chk); }
+    });
   }
 
   // ── DUPLICADO ─────────────────────────────────────────────────

@@ -213,3 +213,10 @@ class PrestamoMaquinaria(db.Model):
     usuario       = db.relationship('Usuario')
     nota_devolucion = db.Column(db.String(300))
     
+
+class ProductoFavorito(db.Model):
+    __tablename__ = 'productos_favoritos'
+    id          = db.Column(db.Integer, primary_key=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False, unique=True)
+    creado_en   = db.Column(db.DateTime, default=datetime.utcnow)
+    producto    = db.relationship('Producto')

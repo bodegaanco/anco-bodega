@@ -75,6 +75,7 @@
           <input type="text" id="buscadorSalida" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarProductosSalida(this.value)">
           <button type="button" onclick="marcarTodosSalida()" class="btn btn-outline btn-sm">Marcar todos</button>
           <button type="button" onclick="desmarcarTodosSalida()" class="btn btn-outline btn-sm">Limpiar</button>
+          <button type="button" onclick="cargarFavoritos()" class="btn btn-outline btn-sm" style="color:#f4a261;border-color:#f4a261">⭐ Favoritos</button>
         </div>
 
         <!-- CONTADOR SELECCIONADOS -->
@@ -248,6 +249,17 @@
       return false;
     }
     return true;
+  }
+
+  async function cargarFavoritos() {
+    const res  = await fetch("/favoritos/api");
+    const favs = await res.json();
+    if (favs.length === 0) { alert("No tienes favoritos configurados. Ve a ⭐ Favoritos en el menú para agregarlos."); return; }
+    desmarcarTodosSalida();
+    favs.forEach(f => {
+      const chk = document.querySelector(`.chk-salida[data-pid="${f.id}"]`);
+      if (chk && !chk.checked) { chk.checked = true; toggleCantidadSalida(chk); }
+    });
   }
 
   function openAnular(id) {
