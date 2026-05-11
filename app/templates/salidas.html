@@ -10,7 +10,8 @@
       {% for c in cuadrillas %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('cuadrilla_id')|int == c.id }}>{{ c.nombre }}</option>{% endfor %}
     </select>
   </form>
-  <button onclick="openModal('salidaModal')" class="btn btn-primary">+ Nueva Salida</button>
+  <button onclick="openModal('salidaManualModal')" class="btn btn-outline">📋 Salida Manual</button>
+  <button onclick="openModal('salidaEscanerModal')" class="btn btn-primary">🔫 Salida con Escáner</button>
 </div>
 
 <div class="card">
@@ -44,17 +45,97 @@
   </table>
 </div>
 
-<!-- MODAL NUEVA SALIDA -->
-<div class="modal-overlay" id="salidaModal">
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL SALIDA MANUAL (checkboxes)
+════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="salidaManualModal">
   <div class="modal" style="width:700px;max-width:98vw">
     <div class="modal-header">
-      <div class="modal-title">📤 Nueva Salida de Material</div>
-      <button class="modal-close" onclick="closeModal('salidaModal')">✕</button>
+      <div class="modal-title">📋 Salida Manual</div>
+      <button class="modal-close" onclick="closeModal('salidaManualModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaForm">
+    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaManualForm">
+      <div class="modal-body" style="padding:20px">
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Cuadrilla</label>
+            <select class="form-select" name="cuadrilla_id" required>
+              <option value="">Seleccionar...</option>
+              {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Notas (opcional)</label>
+            <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos</label>
+          <input type="text" id="buscadorManual" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarManual(this.value)">
+          <button type="button" onclick="marcarTodosManual()" class="btn btn-outline btn-sm">Marcar todos</button>
+          <button type="button" onclick="desmarcarTodosManual()" class="btn btn-outline btn-sm">Limpiar</button>
+          <button type="button" onclick="cargarFavoritosManual()" class="btn btn-outline btn-sm" style="color:#f4a261;border-color:#f4a261">⭐</button>
+        </div>
+        <div id="contadorManual" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">0 seleccionados</div>
+        <div style="max-height:350px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
+              <tr>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:36px;text-align:center">✓</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:70px;text-align:center">Stock</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in productos_select %}
+              <tr class="prod-row-manual" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}" style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;text-align:center">
+                  <input type="checkbox" class="chk-manual" data-pid="{{ p.id }}"
+                    style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"
+                    onchange="toggleCantidadManual(this)">
+                </td>
+                <td style="padding:8px 12px">
+                  <div style="font-size:13px;font-weight:600">{{ p.descripcion }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo-manual">{{ p.codigo }}</span> · {{ p.unidad }}</div>
+                </td>
+                <td style="padding:8px 12px;text-align:center">
+                  <span class="badge {{ 'badge-danger' if p.stock_bodega <= 5 else ('badge-warning' if p.stock_bodega <= 20 else 'badge-ok') }}">{{ p.stock_bodega }}</span>
+                </td>
+                <td style="padding:6px 12px;text-align:center">
+                  <input type="number" class="form-input cant-manual" data-pid="{{ p.id }}"
+                    placeholder="0" min="0.01" step="0.01"
+                    style="text-align:center;padding:5px 6px;font-size:13px;display:none"
+                    oninput="actualizarContadorManual()">
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="hiddenManual"></div>
+      </div>
+      <div class="modal-footer">
+        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenManual"></div>
+        <button type="button" class="btn btn-outline" onclick="closeModal('salidaManualModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" onclick="return prepararManual()">Registrar Salida</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL SALIDA CON ESCÁNER
+════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="salidaEscanerModal">
+  <div class="modal" style="width:680px;max-width:98vw">
+    <div class="modal-header" style="background:#2a6ab8">
+      <div class="modal-title">🔫 Salida con Escáner</div>
+      <button class="modal-close" onclick="closeModal('salidaEscanerModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaEscanerForm">
       <div class="modal-body" style="padding:20px">
 
-        <!-- CUADRILLA Y NOTAS -->
         <div class="form-row" style="margin-bottom:16px">
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Cuadrilla</label>
@@ -69,68 +150,45 @@
           </div>
         </div>
 
-        <!-- BUSCADOR -->
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-          <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos a entregar</label>
-          <input type="text" id="buscadorSalida" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarProductosSalida(this.value)">
-          <button type="button" onclick="marcarTodosSalida()" class="btn btn-outline btn-sm">Marcar todos</button>
-          <button type="button" onclick="desmarcarTodosSalida()" class="btn btn-outline btn-sm">Limpiar</button>
-          <button type="button" onclick="cargarFavoritos()" class="btn btn-outline btn-sm" style="color:#f4a261;border-color:#f4a261">⭐ Favoritos</button>
+        <!-- BUSCADOR + ESCÁNER -->
+        <div style="background:#eef5ff;border-radius:8px;padding:14px;margin-bottom:14px">
+          <label class="form-label" style="color:var(--primary)">🔍 Buscar producto (escribe o escanea)</label>
+          <input type="text" id="inputEscaner" class="form-input"
+            placeholder="Escribe nombre o escanea código de barras..."
+            oninput="buscarProductoEscaner(this.value)"
+            autocomplete="off" style="font-size:14px">
+          <!-- SUGERENCIAS -->
+          <div id="sugerenciasEscaner" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:9999;position:relative"></div>
         </div>
 
-        <!-- CONTADOR SELECCIONADOS -->
-        <div id="contadorSalida" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">
-          0 productos seleccionados
+        <!-- LISTA DE PRODUCTOS AGREGADOS -->
+        <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+          <label class="form-label" style="margin-bottom:0">Productos a entregar</label>
+          <span id="contadorEscaner" style="font-size:12px;color:var(--primary);font-weight:600">0 productos</span>
         </div>
-
-        <!-- LISTA DE PRODUCTOS CON CHECKBOX -->
-        <div id="listaSalida" style="max-height:380px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
-          <table style="width:100%;border-collapse:collapse">
-            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
+        <div id="listaEscaner" style="min-height:60px;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
+          <div id="listaEscanerVacia" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">
+            Escanea o busca productos para agregarlos aquí
+          </div>
+          <table id="tablaEscaner" style="width:100%;border-collapse:collapse;display:none">
+            <thead style="background:#f8fafc">
               <tr>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:36px;text-align:center">✓</th>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:70px;text-align:center">Stock</th>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cantidad</th>
+                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:120px;text-align:center">Cantidad</th>
+                <th style="padding:8px 14px;width:36px"></th>
               </tr>
             </thead>
-            <tbody id="tbodySalida">
-              {% for p in productos_select %}
-              <tr class="prod-row-salida" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}" style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 12px;text-align:center">
-                  <input type="checkbox" class="chk-salida" data-pid="{{ p.id }}" data-unidad="{{ p.unidad }}"
-                    style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"
-                    onchange="toggleCantidadSalida(this)">
-                </td>
-                <td style="padding:8px 12px">
-                  <div style="font-size:13px;font-weight:600;color:var(--text)">{{ p.descripcion }}</div>
-                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo">{{ p.codigo }}</span> · {{ p.unidad }}</div>
-                </td>
-                <td style="padding:8px 12px;text-align:center">
-                  <span class="badge {{ 'badge-danger' if p.stock_bodega <= 5 else ('badge-warning' if p.stock_bodega <= 20 else 'badge-ok') }}">
-                    {{ p.stock_bodega }}
-                  </span>
-                </td>
-                <td style="padding:6px 12px;text-align:center">
-                  <input type="number" class="form-input cant-salida" data-pid="{{ p.id }}"
-                    placeholder="0" min="0.01" step="0.01"
-                    style="text-align:center;padding:5px 6px;font-size:13px;display:none"
-                    oninput="actualizarContadorSalida()">
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
+            <tbody id="tbodyEscaner"></tbody>
           </table>
         </div>
 
-        <!-- INPUTS OCULTOS — se llenan con JS antes de submit -->
-        <div id="hiddenInputsSalida"></div>
-
+        <div id="hiddenEscaner"></div>
+        <div class="info-box" style="margin-top:10px">💡 Escanea el código de barras de la etiqueta o escribe el nombre del producto para buscarlo.</div>
       </div>
       <div class="modal-footer">
-        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenSalida"></div>
-        <button type="button" class="btn btn-outline" onclick="closeModal('salidaModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary" onclick="return prepararSalida()">Registrar Salida</button>
+        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenEscaner"></div>
+        <button type="button" class="btn btn-outline" onclick="closeModal('salidaEscanerModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" onclick="return prepararEscaner()">Registrar Salida</button>
       </div>
     </form>
   </div>
@@ -165,159 +223,250 @@
 {% block scripts %}
 {{ super() }}
 <script>
-  function filtrarProductosSalida(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('.prod-row-salida').forEach(row => {
-      row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
-    });
-  }
+// ── DATOS PRODUCTOS ───────────────────────────────────────────────
+const PRODUCTOS = [
+  {% for p in productos_select %}
+  { id: {{ p.id }}, codigo: '{{ p.codigo }}', nombre: '{{ p.descripcion|replace("'","\\'") }}', unidad: '{{ p.unidad }}', stock: {{ p.stock_bodega }} }{{ ',' if not loop.last }}
+  {% endfor %}
+];
 
-  function toggleCantidadSalida(chk) {
-    const pid   = chk.dataset.pid;
-    const input = document.querySelector(`.cant-salida[data-pid="${pid}"]`);
-    if (chk.checked) {
-      input.style.display = 'block';
-      input.value = 1;
-      input.focus();
-      chk.closest('tr').style.background = '#f0f7ff';
-    } else {
-      input.style.display = 'none';
-      input.value = '';
-      chk.closest('tr').style.background = '';
-    }
-    actualizarContadorSalida();
-  }
-
-  function actualizarContadorSalida() {
-    const seleccionados = document.querySelectorAll('.chk-salida:checked').length;
-    const contador = document.getElementById('contadorSalida');
-    contador.style.display = seleccionados > 0 ? 'block' : 'none';
-    contador.textContent   = `${seleccionados} producto(s) seleccionado(s)`;
-
-    // Resumen en footer
-    let total = 0;
-    document.querySelectorAll('.chk-salida:checked').forEach(chk => {
-      const cant = parseFloat(document.querySelector(`.cant-salida[data-pid="${chk.dataset.pid}"]`).value) || 0;
-      total += cant;
-    });
-    document.getElementById('resumenSalida').textContent =
-      seleccionados > 0 ? `${seleccionados} productos · ${total} unidades totales` : '';
-  }
-
-  function marcarTodosSalida() {
-    document.querySelectorAll('.prod-row-salida:not([style*="display: none"]) .chk-salida').forEach(chk => {
-      if (!chk.checked) { chk.checked = true; toggleCantidadSalida(chk); }
-    });
-  }
-
-  function desmarcarTodosSalida() {
-    document.querySelectorAll('.chk-salida:checked').forEach(chk => {
-      chk.checked = false; toggleCantidadSalida(chk);
-    });
-    document.getElementById('buscadorSalida').value = '';
-    filtrarProductosSalida('');
-  }
-
-  function prepararSalida() {
-    const seleccionados = document.querySelectorAll('.chk-salida:checked');
-    if (seleccionados.length === 0) {
-      alert('Debes seleccionar al menos un producto.');
-      return false;
-    }
-
-    // Limpiar inputs ocultos anteriores
-    const cont = document.getElementById('hiddenInputsSalida');
-    cont.innerHTML = '';
-
-    let valido = true;
-    seleccionados.forEach(chk => {
-      const pid  = chk.dataset.pid;
-      const cant = parseFloat(document.querySelector(`.cant-salida[data-pid="${pid}"]`).value);
-      if (!cant || cant <= 0) { valido = false; return; }
-
-      const ip = document.createElement('input');
-      ip.type = 'hidden'; ip.name = 'producto_id[]'; ip.value = pid;
-      cont.appendChild(ip);
-
-      const ic = document.createElement('input');
-      ic.type = 'hidden'; ic.name = 'cantidad[]'; ic.value = cant;
-      cont.appendChild(ic);
-    });
-
-    if (!valido) {
-      alert('Ingresa una cantidad válida para todos los productos seleccionados.');
-      return false;
-    }
-    return true;
-  }
-
-  async function cargarFavoritos() {
-    const res  = await fetch("/favoritos/api");
-    const favs = await res.json();
-    if (favs.length === 0) { alert("No tienes favoritos configurados. Ve a ⭐ Favoritos en el menú para agregarlos."); return; }
-    desmarcarTodosSalida();
-    favs.forEach(f => {
-      const chk = document.querySelector(`.chk-salida[data-pid="${f.id}"]`);
-      if (chk && !chk.checked) { chk.checked = true; toggleCantidadSalida(chk); }
-    });
-  }
-
-  function openAnular(id) {
-    document.getElementById('anularForm').action = `/movimientos/salidas/anular/${id}`;
-    openModal('anularModal');
-  }
-</script>
-{% endblock %}
-
-<script>
-// ── ESCÁNER EYOYO — SALIDAS ───────────────────────────────────────
-let bufferS = '', timerS = null;
-
-document.addEventListener('keydown', function(e) {
-  if (!document.getElementById('salidaModal').classList.contains('open')) return;
-  const tag = document.activeElement.tagName;
-  const tipo = document.activeElement.type;
-  if (tag === 'INPUT' && (tipo === 'text' || tipo === 'number' || tipo === 'search')) return;
-  if (e.key === 'Enter') {
-    const cod = bufferS.trim(); bufferS = ''; clearTimeout(timerS);
-    if (cod.length >= 6) procesarEscanerSalida(cod);
-  } else if (e.key.length === 1) {
-    bufferS += e.key; clearTimeout(timerS);
-    timerS = setTimeout(() => { bufferS = ''; }, 100);
-  }
-});
-
-function procesarEscanerSalida(codigo) {
-  let encontrado = false;
-  document.querySelectorAll('.prod-row-salida').forEach(fila => {
-    const chk = fila.querySelector('.chk-salida');
-    const codEl = fila.querySelector('.text-codigo');
-    if (!chk || !codEl) return;
-    if (codEl.textContent.trim() === codigo) {
-      encontrado = true;
-      fila.style.display = '';
-      if (!chk.checked) { chk.checked = true; toggleCantidadSalida(chk); }
-      const inp = fila.querySelector('.cant-salida');
-      if (inp) { inp.focus(); inp.select(); }
-      fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      fila.style.background = '#d4edda';
-      setTimeout(() => { fila.style.background = '#f0f7ff'; }, 800);
-    }
+// ════════════════════════════════════════════════════════════════
+// MODAL MANUAL
+// ════════════════════════════════════════════════════════════════
+function filtrarManual(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.prod-row-manual').forEach(row => {
+    row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
   });
-  toastEscaner(encontrado ? `✅ ${codigo} — producto marcado` : `⚠️ Código ${codigo} no encontrado`);
 }
 
-function toastEscaner(msg) {
-  let t = document.getElementById('toastEsc');
+function toggleCantidadManual(chk) {
+  const inp = document.querySelector(`.cant-manual[data-pid="${chk.dataset.pid}"]`);
+  if (chk.checked) {
+    inp.style.display = 'block'; inp.value = 1; inp.focus();
+    chk.closest('tr').style.background = '#f0f7ff';
+  } else {
+    inp.style.display = 'none'; inp.value = '';
+    chk.closest('tr').style.background = '';
+  }
+  actualizarContadorManual();
+}
+
+function actualizarContadorManual() {
+  const sel = document.querySelectorAll('.chk-manual:checked').length;
+  const cnt = document.getElementById('contadorManual');
+  cnt.style.display = sel > 0 ? 'block' : 'none';
+  cnt.textContent = `${sel} producto(s) seleccionado(s)`;
+  document.getElementById('resumenManual').textContent = sel > 0 ? `${sel} productos seleccionados` : '';
+}
+
+function marcarTodosManual() {
+  document.querySelectorAll('.prod-row-manual:not([style*="display: none"]) .chk-manual').forEach(chk => {
+    if (!chk.checked) { chk.checked = true; toggleCantidadManual(chk); }
+  });
+}
+
+function desmarcarTodosManual() {
+  document.querySelectorAll('.chk-manual:checked').forEach(chk => {
+    chk.checked = false; toggleCantidadManual(chk);
+  });
+  document.getElementById('buscadorManual').value = '';
+  filtrarManual('');
+}
+
+async function cargarFavoritosManual() {
+  const res  = await fetch('/favoritos/api');
+  const favs = await res.json();
+  if (favs.length === 0) { alert('No tienes favoritos. Ve a ⭐ Favoritos en el menú.'); return; }
+  desmarcarTodosManual();
+  favs.forEach(f => {
+    const chk = document.querySelector(`.chk-manual[data-pid="${f.id}"]`);
+    if (chk && !chk.checked) { chk.checked = true; toggleCantidadManual(chk); }
+  });
+}
+
+function prepararManual() {
+  const sels = document.querySelectorAll('.chk-manual:checked');
+  if (sels.length === 0) { alert('Selecciona al menos un producto.'); return false; }
+  const cont = document.getElementById('hiddenManual');
+  cont.innerHTML = '';
+  let ok = true;
+  sels.forEach(chk => {
+    const cant = parseFloat(document.querySelector(`.cant-manual[data-pid="${chk.dataset.pid}"]`).value);
+    if (!cant || cant <= 0) { ok = false; return; }
+    const ip = document.createElement('input'); ip.type='hidden'; ip.name='producto_id[]'; ip.value=chk.dataset.pid; cont.appendChild(ip);
+    const ic = document.createElement('input'); ic.type='hidden'; ic.name='cantidad[]'; ic.value=cant; cont.appendChild(ic);
+  });
+  if (!ok) { alert('Ingresa cantidad válida para todos los productos.'); return false; }
+  return true;
+}
+
+// ════════════════════════════════════════════════════════════════
+// MODAL ESCÁNER
+// ════════════════════════════════════════════════════════════════
+let productosEscaner = []; // lista de productos agregados {id, codigo, nombre, unidad, cantidad}
+
+function buscarProductoEscaner(q) {
+  const sug = document.getElementById('sugerenciasEscaner');
+  q = q.trim();
+  if (q.length < 2) { sug.style.display = 'none'; return; }
+
+  const resultados = PRODUCTOS.filter(p =>
+    p.nombre.toLowerCase().includes(q.toLowerCase()) ||
+    p.codigo.includes(q)
+  ).slice(0, 8);
+
+  if (resultados.length === 0) { sug.style.display = 'none'; return; }
+
+  sug.innerHTML = resultados.map(p => `
+    <div onclick="agregarProductoEscaner(${p.id})"
+      style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px"
+      onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+      <strong>${p.nombre}</strong>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${p.codigo} · Stock: ${p.stock}</span>
+    </div>
+  `).join('');
+  sug.style.display = 'block';
+}
+
+function agregarProductoEscaner(pid) {
+  const prod = PRODUCTOS.find(p => p.id === pid);
+  if (!prod) return;
+
+  // Si ya está en la lista, solo enfocar su cantidad
+  const existente = productosEscaner.find(p => p.id === pid);
+  if (existente) {
+    document.getElementById(`cant-esc-${pid}`).focus();
+    document.getElementById('sugerenciasEscaner').style.display = 'none';
+    document.getElementById('inputEscaner').value = '';
+    toastEsc(`⚠️ ${prod.nombre} ya está en la lista`);
+    return;
+  }
+
+  productosEscaner.push({ ...prod, cantidad: 1 });
+  renderListaEscaner();
+  document.getElementById('sugerenciasEscaner').style.display = 'none';
+  document.getElementById('inputEscaner').value = '';
+  setTimeout(() => {
+    const inp = document.getElementById(`cant-esc-${pid}`);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+  toastEsc(`✅ ${prod.nombre} agregado`);
+}
+
+function renderListaEscaner() {
+  const tbody  = document.getElementById('tbodyEscaner');
+  const tabla  = document.getElementById('tablaEscaner');
+  const vacia  = document.getElementById('listaEscanerVacia');
+  const cnt    = document.getElementById('contadorEscaner');
+
+  if (productosEscaner.length === 0) {
+    tabla.style.display = 'none'; vacia.style.display = 'block';
+    cnt.textContent = '0 productos';
+    document.getElementById('resumenEscaner').textContent = '';
+    return;
+  }
+
+  tabla.style.display = ''; vacia.style.display = 'none';
+  cnt.textContent = `${productosEscaner.length} producto(s)`;
+
+  tbody.innerHTML = productosEscaner.map(p => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 14px">
+        <div style="font-size:13px;font-weight:600">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.codigo} · ${p.unidad} · Stock: ${p.stock}</div>
+      </td>
+      <td style="padding:6px 14px;text-align:center">
+        <input type="number" id="cant-esc-${p.id}" class="form-input"
+          value="${p.cantidad}" min="0.01" step="0.01"
+          style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;width:90px"
+          onchange="actualizarCantEscaner(${p.id}, this.value)">
+      </td>
+      <td style="padding:6px 14px;text-align:center">
+        <button type="button" class="btn-remove" onclick="quitarProductoEscaner(${p.id})">×</button>
+      </td>
+    </tr>
+  `).join('');
+
+  const total = productosEscaner.reduce((s, p) => s + p.cantidad, 0);
+  document.getElementById('resumenEscaner').textContent = `${productosEscaner.length} productos · ${total} unidades totales`;
+}
+
+function actualizarCantEscaner(pid, val) {
+  const p = productosEscaner.find(p => p.id === pid);
+  if (p) { p.cantidad = parseFloat(val) || 1; renderListaEscaner(); }
+}
+
+function quitarProductoEscaner(pid) {
+  productosEscaner = productosEscaner.filter(p => p.id !== pid);
+  renderListaEscaner();
+}
+
+function prepararEscaner() {
+  if (productosEscaner.length === 0) { alert('Agrega al menos un producto.'); return false; }
+  const cont = document.getElementById('hiddenEscaner');
+  cont.innerHTML = '';
+  productosEscaner.forEach(p => {
+    const ip = document.createElement('input'); ip.type='hidden'; ip.name='producto_id[]'; ip.value=p.id; cont.appendChild(ip);
+    const ic = document.createElement('input'); ic.type='hidden'; ic.name='cantidad[]'; ic.value=p.cantidad; cont.appendChild(ic);
+  });
+  return true;
+}
+
+// ── ESCÁNER FÍSICO (Eyoyo) ────────────────────────────────────
+let bufferEsc = '', timerEsc = null;
+
+document.addEventListener('keydown', function(e) {
+  const modalAbierto = document.getElementById('salidaEscanerModal').classList.contains('open');
+  if (!modalAbierto) return;
+
+  // Si el foco está en el input de búsqueda, dejar que escriba normal
+  if (document.activeElement.id === 'inputEscaner') return;
+  // Si el foco está en un campo de cantidad, dejar normal
+  if (document.activeElement.id && document.activeElement.id.startsWith('cant-esc-')) return;
+
+  if (e.key === 'Enter') {
+    const cod = bufferEsc.trim(); bufferEsc = ''; clearTimeout(timerEsc);
+    if (cod.length >= 6) {
+      const prod = PRODUCTOS.find(p => p.codigo === cod);
+      if (prod) agregarProductoEscaner(prod.id);
+      else toastEsc(`⚠️ Código ${cod} no encontrado`);
+    }
+  } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+    bufferEsc += e.key; clearTimeout(timerEsc);
+    timerEsc = setTimeout(() => { bufferEsc = ''; }, 150);
+  }
+}, true);
+
+// Limpiar lista al cerrar modal
+document.getElementById('salidaEscanerModal').addEventListener('click', function(e) {
+  if (e.target === this) { productosEscaner = []; renderListaEscaner(); }
+});
+
+function toastEsc(msg) {
+  let t = document.getElementById('toastEscaner');
   if (!t) {
     t = document.createElement('div');
-    t.id = 'toastEsc';
-    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #3E88D6;display:none;max-width:300px';
+    t.id = 'toastEscaner';
+    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #3E88D6;display:none;max-width:320px';
     document.body.appendChild(t);
   }
   t.textContent = msg;
   t.style.display = 'block';
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
+
+function openAnular(id) {
+  document.getElementById('anularForm').action = `/movimientos/salidas/anular/${id}`;
+  openModal('anularModal');
+}
+
+// Cerrar sugerencias al hacer click fuera
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#inputEscaner') && !e.target.closest('#sugerenciasEscaner')) {
+    document.getElementById('sugerenciasEscaner').style.display = 'none';
+  }
+});
 </script>
+{% endblock %}
