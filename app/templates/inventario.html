@@ -8,15 +8,10 @@
   <button onclick="openModal('inventarioModal')" class="btn btn-primary" style="margin-left:auto">+ Nuevo Inventario</button>
 </div>
 
-<!-- Historial -->
 <div class="card">
-  <div class="card-header">
-    <div class="card-title">📋 Historial de Inventarios</div>
-  </div>
+  <div class="card-header"><div class="card-title">📋 Historial de Inventarios</div></div>
   <table class="tbl">
-    <thead>
-      <tr><th>Fecha</th><th>Tipo</th><th>Productos</th><th>Diferencias</th><th>Registrado por</th></tr>
-    </thead>
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Productos</th><th>Diferencias</th><th>Registrado por</th></tr></thead>
     <tbody>
       {% for inv in inventarios %}
       <tr>
@@ -52,51 +47,86 @@
 
 <!-- MODAL INVENTARIO -->
 <div class="modal-overlay" id="inventarioModal">
-  <div class="modal modal-wide">
+  <div class="modal" style="width:700px;max-width:98vw">
     <div class="modal-header">
       <div class="modal-title">🔍 Registrar Inventario Físico</div>
       <button class="modal-close" onclick="closeModal('inventarioModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('inventario.nuevo') }}">
-      <div class="modal-body">
-        <div class="form-row">
-          <div class="form-group">
+    <form method="POST" action="{{ url_for('inventario.nuevo') }}" id="invForm">
+      <div class="modal-body" style="padding:20px">
+
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Tipo de inventario</label>
             <select class="form-select" name="tipo" id="tipo-select" onchange="toggleCuadrilla(this.value)">
               <option value="bodega">Bodega Central</option>
               <option value="cuadrilla">Cuadrilla</option>
             </select>
           </div>
-          <div class="form-group" id="cuadrilla-field" style="display:none">
+          <div class="form-group" id="cuadrilla-field" style="display:none;margin-bottom:0">
             <label class="form-label">Cuadrilla</label>
             <select class="form-select" name="cuadrilla_id">
               <option value="">Seleccionar...</option>
-              {% for c in cuadrillas %}
-              <option value="{{ c.id }}">{{ c.nombre }}</option>
-              {% endfor %}
+              {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
             </select>
           </div>
         </div>
 
-        <label class="form-label">Conteo por producto (cantidad real contada)</label>
-        <div id="inv-items">
-          <div class="item-row">
-            <select class="form-select" name="producto_id[]">
-              <option value="">Seleccionar producto...</option>
-              {% for p in productos %}
-              <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} (Sistema: {{ p.stock_bodega }})</option>
-              {% endfor %}
-            </select>
-            <input type="number" class="form-input" name="cantidad_real[]" placeholder="Cant. real" min="0">
-            <span></span>
-          </div>
+        <!-- BUSCADOR + ESCÁNER -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos a contar</label>
+          <input type="text" id="buscadorInv" class="form-input" placeholder="🔍 Filtrar o escanear código..." style="flex:1" oninput="filtrarInv(this.value)">
+          <button type="button" onclick="marcarTodosInv()" class="btn btn-outline btn-sm">Marcar todos</button>
+          <button type="button" onclick="desmarcarTodosInv()" class="btn btn-outline btn-sm">Limpiar</button>
         </div>
-        <button type="button" class="btn-add-more" onclick="addInv()">+ Agregar otro producto</button>
-        <div class="info-box">💡 El sistema comparará con el stock registrado y ajustará la diferencia automáticamente.</div>
+
+        <div id="contadorInv" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">0 productos seleccionados</div>
+
+        <!-- LISTA CON CHECKBOXES -->
+        <div style="max-height:360px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
+              <tr>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:36px;text-align:center">✓</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:80px;text-align:center">Sistema</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cant. real</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in productos %}
+              <tr class="prod-row-inv" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}" style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;text-align:center">
+                  <input type="checkbox" class="chk-inv" data-pid="{{ p.id }}"
+                    style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"
+                    onchange="toggleCantidadInv(this)">
+                </td>
+                <td style="padding:8px 12px">
+                  <div style="font-size:13px;font-weight:600;color:var(--text)">{{ p.descripcion }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo-inv">{{ p.codigo }}</span> · {{ p.unidad }}</div>
+                </td>
+                <td style="padding:8px 12px;text-align:center">
+                  <span class="badge badge-gray">{{ p.stock_bodega }}</span>
+                </td>
+                <td style="padding:6px 12px;text-align:center">
+                  <input type="number" class="form-input cant-inv" data-pid="{{ p.id }}"
+                    placeholder="0" min="0" step="0.01"
+                    style="text-align:center;padding:5px 6px;font-size:13px;display:none"
+                    oninput="actualizarContadorInv()">
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="info-box" style="margin-top:10px">💡 El sistema comparará con el stock registrado y ajustará la diferencia automáticamente.</div>
+        <div id="hiddenInputsInv"></div>
       </div>
       <div class="modal-footer">
+        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenInv"></div>
         <button type="button" class="btn btn-outline" onclick="closeModal('inventarioModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Aplicar Inventario</button>
+        <button type="submit" class="btn btn-primary" onclick="return prepararInv()">Aplicar Inventario</button>
       </div>
     </form>
   </div>
@@ -104,26 +134,120 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
   function toggleCuadrilla(val) {
     document.getElementById('cuadrilla-field').style.display = val === 'cuadrilla' ? 'block' : 'none';
   }
 
-  const opts = `{% for p in productos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;
+  function filtrarInv(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.prod-row-inv').forEach(row => {
+      row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
+    });
+  }
 
-  function addInv() {
-    const c = document.getElementById('inv-items');
-    const d = document.createElement('div');
-    d.className = 'item-row';
-    d.style.marginTop = '8px';
-    d.innerHTML = `
-      <select class="form-select" name="producto_id[]">
-        <option value="">Seleccionar producto...</option>${opts}
-      </select>
-      <input type="number" class="form-input" name="cantidad_real[]" placeholder="Cant. real" min="0">
-      <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
-    `;
-    c.appendChild(d);
+  function toggleCantidadInv(chk) {
+    const inp = document.querySelector(`.cant-inv[data-pid="${chk.dataset.pid}"]`);
+    if (chk.checked) {
+      inp.style.display = 'block'; inp.value = ''; inp.focus();
+      chk.closest('tr').style.background = '#f0f7ff';
+    } else {
+      inp.style.display = 'none'; inp.value = '';
+      chk.closest('tr').style.background = '';
+    }
+    actualizarContadorInv();
+  }
+
+  function actualizarContadorInv() {
+    const sel = document.querySelectorAll('.chk-inv:checked').length;
+    const cnt = document.getElementById('contadorInv');
+    cnt.style.display = sel > 0 ? 'block' : 'none';
+    cnt.textContent = `${sel} producto(s) seleccionado(s)`;
+    document.getElementById('resumenInv').textContent = sel > 0 ? `${sel} productos a contar` : '';
+  }
+
+  function marcarTodosInv() {
+    document.querySelectorAll('.prod-row-inv:not([style*="display: none"]) .chk-inv').forEach(chk => {
+      if (!chk.checked) { chk.checked = true; toggleCantidadInv(chk); }
+    });
+  }
+
+  function desmarcarTodosInv() {
+    document.querySelectorAll('.chk-inv:checked').forEach(chk => {
+      chk.checked = false; toggleCantidadInv(chk);
+    });
+    document.getElementById('buscadorInv').value = '';
+    filtrarInv('');
+  }
+
+  function prepararInv() {
+    const seleccionados = document.querySelectorAll('.chk-inv:checked');
+    if (seleccionados.length === 0) { alert('Selecciona al menos un producto.'); return false; }
+    const cont = document.getElementById('hiddenInputsInv');
+    cont.innerHTML = '';
+    seleccionados.forEach(chk => {
+      const pid  = chk.dataset.pid;
+      const cant = document.querySelector(`.cant-inv[data-pid="${pid}"]`).value;
+      const ip = document.createElement('input');
+      ip.type = 'hidden'; ip.name = 'producto_id[]'; ip.value = pid;
+      cont.appendChild(ip);
+      const ic = document.createElement('input');
+      ic.type = 'hidden'; ic.name = 'cantidad_real[]'; ic.value = cant === '' ? '0' : cant;
+      cont.appendChild(ic);
+    });
+    return true;
+  }
+
+  // ── ESCÁNER EYOYO — INVENTARIO ────────────────────────────────
+  let bufferInv = '', timerInv = null;
+
+  document.addEventListener('keydown', function(e) {
+    if (!document.getElementById('inventarioModal').classList.contains('open')) return;
+    const tag = document.activeElement.tagName;
+    const tipo = document.activeElement.type;
+    if (tag === 'INPUT' && (tipo === 'text' || tipo === 'number' || tipo === 'search')) return;
+    if (e.key === 'Enter') {
+      const cod = bufferInv.trim(); bufferInv = ''; clearTimeout(timerInv);
+      if (cod.length >= 6) procesarEscanerInv(cod);
+    } else if (e.key.length === 1) {
+      bufferInv += e.key; clearTimeout(timerInv);
+      timerInv = setTimeout(() => { bufferInv = ''; }, 100);
+    }
+  });
+
+  function procesarEscanerInv(codigo) {
+    let encontrado = false;
+    document.querySelectorAll('.prod-row-inv').forEach(fila => {
+      const chk = fila.querySelector('.chk-inv');
+      const codEl = fila.querySelector('.text-codigo-inv');
+      if (!chk || !codEl) return;
+      if (codEl.textContent.trim() === codigo) {
+        encontrado = true;
+        fila.style.display = '';
+        if (!chk.checked) { chk.checked = true; toggleCantidadInv(chk); }
+        const inp = fila.querySelector('.cant-inv');
+        if (inp) { inp.focus(); inp.select(); }
+        fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        fila.style.background = '#d4edda';
+        setTimeout(() => { fila.style.background = '#f0f7ff'; }, 800);
+      }
+    });
+    toastEscanerInv(encontrado ? `✅ ${codigo} — producto marcado` : `⚠️ Código ${codigo} no encontrado`);
+  }
+
+  function toastEscanerInv(msg) {
+    let t = document.getElementById('toastEscInv');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toastEscInv';
+      t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #f4a261;display:none;max-width:300px';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.display = 'block';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
   }
 </script>
 {% endblock %}

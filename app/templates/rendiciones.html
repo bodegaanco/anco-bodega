@@ -187,7 +187,7 @@
                 </td>
                 <td style="padding:8px 12px">
                   <div style="font-size:13px;font-weight:600;color:var(--text)">{{ p.descripcion }}</div>
-                  <div style="font-size:11px;color:var(--text-muted)">{{ p.codigo }} · {{ p.unidad }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo-ot">{{ p.codigo }}</span> · {{ p.unidad }}</div>
                 </td>
                 <td style="padding:6px 12px;text-align:center">
                   <input type="number" class="form-input cant-ot" data-pid="{{ p.id }}"
@@ -480,3 +480,56 @@
   }
 </script>
 {% endblock %}
+
+<script>
+// ── ESCÁNER EYOYO — RENDICIONES OT ───────────────────────────────
+let bufferOT = '', timerOT = null;
+
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('otModal').classList.contains('open')) return;
+  const tag = document.activeElement.tagName;
+  const tipo = document.activeElement.type;
+  if (tag === 'INPUT' && (tipo === 'text' || tipo === 'number' || tipo === 'search')) return;
+  if (e.key === 'Enter') {
+    const cod = bufferOT.trim(); bufferOT = ''; clearTimeout(timerOT);
+    if (cod.length >= 6) procesarEscanerOT(cod);
+  } else if (e.key.length === 1) {
+    bufferOT += e.key; clearTimeout(timerOT);
+    timerOT = setTimeout(() => { bufferOT = ''; }, 100);
+  }
+});
+
+function procesarEscanerOT(codigo) {
+  let encontrado = false;
+  document.querySelectorAll('.prod-row-ot').forEach(fila => {
+    const chk = fila.querySelector('.chk-ot');
+    const codEl = fila.querySelector('.text-codigo-ot');
+    if (!chk || !codEl) return;
+    if (codEl.textContent.trim() === codigo) {
+      encontrado = true;
+      fila.style.display = '';
+      if (!chk.checked) { chk.checked = true; toggleCantidadOT(chk); }
+      const inp = fila.querySelector('.cant-ot');
+      if (inp) { inp.focus(); inp.select(); }
+      fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      fila.style.background = '#d4edda';
+      setTimeout(() => { fila.style.background = '#f0f7ff'; }, 800);
+    }
+  });
+  toastEscanerOT(encontrado ? `✅ ${codigo} — producto marcado` : `⚠️ Código ${codigo} no encontrado`);
+}
+
+function toastEscanerOT(msg) {
+  let t = document.getElementById('toastEscOT');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toastEscOT';
+    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #2a9d8f;display:none;max-width:300px';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+</script>

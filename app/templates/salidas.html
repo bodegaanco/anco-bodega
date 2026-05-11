@@ -104,7 +104,7 @@
                 </td>
                 <td style="padding:8px 12px">
                   <div style="font-size:13px;font-weight:600;color:var(--text)">{{ p.descripcion }}</div>
-                  <div style="font-size:11px;color:var(--text-muted)">{{ p.codigo }} · {{ p.unidad }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo">{{ p.codigo }}</span> · {{ p.unidad }}</div>
                 </td>
                 <td style="padding:8px 12px;text-align:center">
                   <span class="badge {{ 'badge-danger' if p.stock_bodega <= 5 else ('badge-warning' if p.stock_bodega <= 20 else 'badge-ok') }}">
@@ -268,3 +268,56 @@
   }
 </script>
 {% endblock %}
+
+<script>
+// ── ESCÁNER EYOYO — SALIDAS ───────────────────────────────────────
+let bufferS = '', timerS = null;
+
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('salidaModal').classList.contains('open')) return;
+  const tag = document.activeElement.tagName;
+  const tipo = document.activeElement.type;
+  if (tag === 'INPUT' && (tipo === 'text' || tipo === 'number' || tipo === 'search')) return;
+  if (e.key === 'Enter') {
+    const cod = bufferS.trim(); bufferS = ''; clearTimeout(timerS);
+    if (cod.length >= 6) procesarEscanerSalida(cod);
+  } else if (e.key.length === 1) {
+    bufferS += e.key; clearTimeout(timerS);
+    timerS = setTimeout(() => { bufferS = ''; }, 100);
+  }
+});
+
+function procesarEscanerSalida(codigo) {
+  let encontrado = false;
+  document.querySelectorAll('.prod-row-salida').forEach(fila => {
+    const chk = fila.querySelector('.chk-salida');
+    const codEl = fila.querySelector('.text-codigo');
+    if (!chk || !codEl) return;
+    if (codEl.textContent.trim() === codigo) {
+      encontrado = true;
+      fila.style.display = '';
+      if (!chk.checked) { chk.checked = true; toggleCantidadSalida(chk); }
+      const inp = fila.querySelector('.cant-salida');
+      if (inp) { inp.focus(); inp.select(); }
+      fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      fila.style.background = '#d4edda';
+      setTimeout(() => { fila.style.background = '#f0f7ff'; }, 800);
+    }
+  });
+  toastEscaner(encontrado ? `✅ ${codigo} — producto marcado` : `⚠️ Código ${codigo} no encontrado`);
+}
+
+function toastEscaner(msg) {
+  let t = document.getElementById('toastEsc');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toastEsc';
+    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #3E88D6;display:none;max-width:300px';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+</script>
