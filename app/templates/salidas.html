@@ -343,7 +343,7 @@ async function verDetalle(salidaId) {
           </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px">
             <button type="button" class="btn btn-outline" onclick="closeModal('detalleModal')">Cancelar</button>
-            <button type="submit" class="btn btn-primary">✅ Guardar Rendición</button>
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('rendicionForm').submit()">✅ Guardar Rendición</button>
           </div>
         </form>
       </div>`;
@@ -414,6 +414,8 @@ function activarEscanerRendicion(salidaId, items) {
     if (activo.id && activo.id.startsWith('cant-rend-')) return;
 
     if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
       const cod = bufferR.trim(); bufferR = ''; clearTimeout(timerR);
       if (cod.length >= 6) {
         const item = items.find(i => i.codigo === cod);
