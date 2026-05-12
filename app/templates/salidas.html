@@ -253,106 +253,108 @@ async function verDetalle(salidaId) {
   const data = await res.json();
 
   document.getElementById('detalleTitulo').textContent = `Entrega #${data.salida_id} — ${data.cuadrilla}`;
+  document.getElementById('detalleHeader').style.background = data.tiene_rendicion ? '#2a9d8f' : '#1a2b3c';
 
+  // ── BARRA INFO ──
   let html = `
-    <div style="padding:16px 20px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;gap:16px;font-size:13px">
-      <span style="color:var(--text-muted)">📅 ${data.fecha}</span>
-      <span style="color:var(--text-muted)">🚚 ${data.cuadrilla}</span>
-      ${data.notas ? `<span style="color:var(--text-muted)">📝 ${data.notas}</span>` : ''}
+    <div style="padding:12px 20px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;gap:16px;font-size:12px;align-items:center;flex-wrap:wrap">
+      <span>📅 <strong>${data.fecha}</strong></span>
+      <span>🚚 <strong>${data.cuadrilla}</strong></span>
+      ${data.notas ? `<span>📝 ${data.notas}</span>` : ''}
+      <span style="margin-left:auto;font-weight:700;${data.tiene_rendicion ? 'color:#2a9d8f' : 'color:#f4a261'}">
+        ${data.tiene_rendicion ? '✅ Rendida el ' + data.rendicion_fecha : '⏳ Pendiente de rendir'}
+      </span>
     </div>`;
 
-  // Tabla entregado vs rendido vs saldo
-  html += `
-    <table class="tbl">
-      <thead><tr>
-        <th>Producto</th>
-        <th style="text-align:center;width:100px">Entregado</th>
-        <th style="text-align:center;width:100px">Rendido</th>
-        <th style="text-align:center;width:100px">Saldo</th>
-      </tr></thead>
-      <tbody>`;
-
-  data.items.forEach(item => {
-    const saldoColor = item.saldo > 0 ? 'var(--warning)' : item.saldo < 0 ? 'var(--danger)' : 'var(--success)';
-    const saldoIcon  = item.saldo > 0 ? '⚠️' : item.saldo < 0 ? '❌' : '✅';
+  // ── BUSCADOR ESCÁNER (solo si no tiene rendicion) ──
+  if (!data.tiene_rendicion) {
     html += `
-      <tr>
-        <td>
-          <strong style="font-size:13px">${item.nombre}</strong>
-          <div style="font-size:11px;color:var(--text-muted)">${item.codigo} · ${item.unidad}</div>
-        </td>
-        <td style="text-align:center"><span class="badge badge-blue">${item.entregado}</span></td>
-        <td style="text-align:center"><span class="badge ${item.rendido > 0 ? 'badge-ok' : 'badge-gray'}">${item.rendido}</span></td>
-        <td style="text-align:center"><strong style="color:${saldoColor}">${saldoIcon} ${item.saldo > 0 ? '+' : ''}${item.saldo}</strong></td>
-      </tr>`;
-  });
-  html += `</tbody></table>`;
-
-  if (data.tiene_rendicion) {
-    html += `
-      <div style="padding:14px 20px;background:#e8f5f3;border-top:1px solid var(--border)">
-        <span style="color:var(--success);font-weight:600;font-size:13px">✅ Rendición registrada el ${data.rendicion_fecha}</span>
-      </div>`;
-  } else {
-    // Formulario rendición con escáner
-    html += `
-      <div style="padding:20px;border-top:1px solid var(--border)">
-        <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:14px">📋 Registrar Rendición</div>
-        <form method="POST" action="/movimientos/salidas/${salidaId}/rendir" id="rendicionForm">
-          <div style="background:#eef5ff;border-radius:8px;padding:12px;margin-bottom:14px">
-            <label class="form-label" style="color:var(--primary)">🔫 Escanear producto para ingresar cantidad rendida</label>
-            <input type="text" id="inputRendicion" class="form-input"
-              placeholder="Escanea código o escribe nombre..."
-              oninput="buscarRendicion(this.value, ${salidaId})"
-              autocomplete="off">
-            <div id="sugerenciasRendicion" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:4px;max-height:150px;overflow-y:auto;position:relative;z-index:9999"></div>
-          </div>
-          <table style="width:100%;border-collapse:collapse;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
-            <thead style="background:#f8fafc">
-              <tr>
-                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
-                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:90px;text-align:center">Entregado</th>
-                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:130px;text-align:center">Cantidad Rendida</th>
-              </tr>
-            </thead>
-            <tbody>`;
-
-    data.items.forEach(item => {
-      html += `
-              <tr style="border-bottom:1px solid var(--border)" id="rend-row-${item.producto_id}">
-                <td style="padding:8px 14px">
-                  <strong>${item.nombre}</strong>
-                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo-rend">${item.codigo}</span> · ${item.unidad}</div>
-                </td>
-                <td style="padding:8px 14px;text-align:center"><span class="badge badge-blue">${item.entregado}</span></td>
-                <td style="padding:6px 14px;text-align:center">
-                  <input type="hidden" name="salida_item_id[]" value="${item.salida_item_id}">
-                  <input type="number" id="cant-rend-${item.producto_id}" name="cantidad_rendida[]"
-                    class="form-input" value="0" min="0" step="0.01"
-                    style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;width:100px">
-                </td>
-              </tr>`;
-    });
-
-    html += `
-            </tbody>
-          </table>
-          <div class="form-group" style="margin-top:12px">
-            <label class="form-label">Notas (opcional)</label>
-            <input type="text" name="notas" class="form-input" placeholder="Observaciones de la rendición...">
-          </div>
-          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px">
-            <button type="button" class="btn btn-outline" onclick="closeModal('detalleModal')">Cancelar</button>
-            <button type="button" class="btn btn-primary" onclick="document.getElementById('rendicionForm').submit()">✅ Guardar Rendición</button>
-          </div>
-        </form>
-      </div>`;
-
-    // Activar escáner para rendición después de que el HTML se renderice
-    setTimeout(() => activarEscanerRendicion(salidaId, data.items), 100);
+    <div style="padding:12px 20px;background:#eef5ff;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center">
+      <span style="font-size:13px;font-weight:700;color:var(--primary);white-space:nowrap">🔫</span>
+      <div style="flex:1;position:relative">
+        <input type="text" id="inputRendicion" class="form-input"
+          placeholder="Escanea código de barras o escribe nombre del producto..."
+          oninput="buscarRendicion(this.value, ${salidaId})"
+          autocomplete="off" style="font-size:13px">
+        <div id="sugerenciasRendicion" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:2px;max-height:180px;overflow-y:auto;position:absolute;width:100%;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15)"></div>
+      </div>
+    </div>`;
   }
 
+  // ── TABLA ÚNICA ──
+  html += `<form method="POST" action="/movimientos/salidas/${salidaId}/rendir" id="rendicionForm">
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#f8fafc">
+        <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left;border-bottom:2px solid var(--border)">Producto</th>
+        <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--primary);font-weight:700;width:100px;text-align:center;border-bottom:2px solid var(--border)">Entregado</th>
+        <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#2a9d8f;font-weight:700;width:140px;text-align:center;border-bottom:2px solid var(--border)">${data.tiene_rendicion ? 'Rendido' : '✏️ Rendido'}</th>
+        <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:100px;text-align:center;border-bottom:2px solid var(--border)">Saldo</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  data.items.forEach((item, idx) => {
+    const saldoBg    = item.saldo > 0 ? '#fff8e1' : item.saldo < 0 ? '#ffeaea' : '#f0fdf8';
+    const saldoColor = item.saldo > 0 ? '#c67c00' : item.saldo < 0 ? 'var(--danger)' : 'var(--success)';
+    const saldoLabel = item.saldo > 0 ? 'pendiente' : item.saldo < 0 ? 'exceso' : 'ok';
+    const saldoIcon  = item.saldo > 0 ? '▲' : item.saldo < 0 ? '▼' : '✓';
+    const rowBg      = idx % 2 === 0 ? '#fff' : '#fafcff';
+
+    html += `
+      <tr id="rend-row-${item.producto_id}" style="border-bottom:1px solid var(--border);background:${rowBg};transition:background 0.2s">
+        <td style="padding:10px 16px">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${item.nombre}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">
+            <span class="text-codigo-rend" style="background:#f0f4f8;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:10px">${item.codigo}</span>
+            <span style="margin-left:5px">${item.unidad}</span>
+          </div>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <span style="font-size:22px;font-weight:800;color:var(--primary)">${item.entregado}</span>
+          <div style="font-size:10px;color:var(--text-muted)">${item.unidad}</div>
+        </td>
+        <td style="padding:8px 16px;text-align:center">`;
+
+    if (data.tiene_rendicion) {
+      html += `
+          <span style="font-size:22px;font-weight:800;color:#2a9d8f">${item.rendido}</span>
+          <div style="font-size:10px;color:var(--text-muted)">${item.unidad}</div>`;
+    } else {
+      html += `
+          <input type="hidden" name="salida_item_id[]" value="${item.salida_item_id}">
+          <input type="number" id="cant-rend-${item.producto_id}" name="cantidad_rendida[]"
+            class="form-input" value="0" min="0" step="0.01"
+            style="text-align:center;padding:7px 8px;font-size:18px;font-weight:800;width:95px;border:2px solid var(--border);border-radius:6px;color:var(--text)"
+            onfocus="this.select();this.closest('tr').style.background='#e8f5ff';this.style.borderColor='var(--primary)'"
+            onblur="this.closest('tr').style.background='${rowBg}';this.style.borderColor='var(--border)'">`;
+    }
+
+    html += `
+        </td>
+        <td style="padding:10px 16px;text-align:center;background:${saldoBg}">
+          <span style="font-size:18px;font-weight:800;color:${saldoColor}">${saldoIcon} ${Math.abs(item.saldo)}</span>
+          <div style="font-size:10px;color:${saldoColor};font-weight:600">${saldoLabel}</div>
+        </td>
+      </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+
+  if (!data.tiene_rendicion) {
+    html += `
+  <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:#f8fafc">
+    <input type="text" name="notas" class="form-input" placeholder="Notas de rendición (opcional)" style="flex:1;font-size:12px">
+    <button type="button" class="btn btn-outline" onclick="closeModal('detalleModal')">Cancelar</button>
+    <button type="button" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f"
+      onclick="document.getElementById('rendicionForm').submit()">✅ Guardar Rendición</button>
+  </div>`;
+  }
+
+  html += `</form>`;
   document.getElementById('detalleBody').innerHTML = html;
+
   if (!data.tiene_rendicion) {
     setTimeout(() => activarEscanerRendicion(salidaId, data.items), 150);
   }
@@ -404,26 +406,42 @@ function enfocarRendicion(pid) {
 // ── ESCÁNER FÍSICO PARA RENDICIÓN ────────────────────
 function activarEscanerRendicion(salidaId, items) {
   let bufferR = '', timerR = null;
+  let esEscaner = false; // true cuando la entrada viene rapido (escaner)
+
   document.addEventListener('keydown', function handlerR(e) {
     if (!document.getElementById('detalleModal').classList.contains('open')) {
       document.removeEventListener('keydown', handlerR);
       return;
     }
-    const activo = document.activeElement;
-    if (activo.id === 'inputRendicion') return;
-    if (activo.id && activo.id.startsWith('cant-rend-')) return;
+
+    // Si el foco esta en el buscador, no interferir
+    if (document.activeElement.id === 'inputRendicion') return;
+
+    const enCampoQty = document.activeElement.id && document.activeElement.id.startsWith('cant-rend-');
 
     if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      const cod = bufferR.trim(); bufferR = ''; clearTimeout(timerR);
+      const cod = bufferR.trim();
+      bufferR = ''; clearTimeout(timerR); esEscaner = false;
+
       if (cod.length >= 6) {
+        // Es un codigo de escaner — siempre navegar al producto
+        e.preventDefault();
+        e.stopPropagation();
         const item = items.find(i => i.codigo === cod);
         if (item) enfocarRendicion(item.producto_id);
         else toastEsc(`⚠️ Código ${cod} no encontrado en esta entrega`);
       }
     } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
-      bufferR += e.key; clearTimeout(timerR);
+      bufferR += e.key;
+      clearTimeout(timerR);
+
+      // Si estamos en campo cantidad y el buffer crece rapido = es escaner
+      // Prevenir que se escriba en el campo
+      if (enCampoQty && bufferR.length > 1) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
       timerR = setTimeout(() => { bufferR = ''; }, 150);
     }
   }, true);
