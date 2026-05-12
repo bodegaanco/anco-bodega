@@ -107,7 +107,7 @@
                   </div>
                 </td>
                 <td style="padding:10px 16px;text-align:center">
-                  <span class="stock-sistema" style="font-size:18px;font-weight:800;color:var(--primary)">{{ p.stock_bodega|num }}</span>
+                  <span class="stock-sistema" data-val="{{ p.stock_bodega }}" style="font-size:18px;font-weight:800;color:var(--primary)">{{ p.stock_bodega|num }}</span>
                   <div style="font-size:10px;color:var(--text-muted)">{{ p.unidad }}</div>
                 </td>
                 <td style="padding:8px 16px;text-align:center">
@@ -233,11 +233,12 @@ function desactivarFila(inp) {
 
 // ── CALCULAR DIFERENCIA EN TIEMPO REAL ───────────────────────
 function actualizarDif(inp) {
-  const pid      = inp.dataset.pid;
-  const row      = inp.closest('tr');
-  const stockSis = parseFloat(row.querySelector('.stock-sistema').textContent) || 0;
+  const pid       = inp.dataset.pid;
+  const row       = inp.closest('tr');
+  const sisEl     = row.querySelector('.stock-sistema');
+  const stockSis  = parseFloat(sisEl.dataset.val || sisEl.textContent) || 0;
   const stockReal = parseFloat(inp.value);
-  const difEl    = document.getElementById(`dif-${pid}`);
+  const difEl     = document.getElementById(`dif-${pid}`);
 
   if (isNaN(stockReal) || inp.value === '') {
     difEl.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
@@ -247,12 +248,23 @@ function actualizarDif(inp) {
   }
 
   row.querySelector('.inp-pid').disabled = false;
-  const dif = stockReal - stockSis;
+  const dif   = Math.round((stockReal - stockSis) * 10000) / 10000;
   const color = dif > 0 ? 'var(--success)' : dif < 0 ? 'var(--danger)' : 'var(--text-muted)';
   const icon  = dif > 0 ? '▲' : dif < 0 ? '▼' : '=';
   difEl.innerHTML = `<span style="font-size:15px;font-weight:800;color:${color}">${icon} ${formatNum(Math.abs(dif))}</span>`;
 
+  // Highlight fila segun diferencia
+  row.style.background = dif !== 0 ? (dif > 0 ? '#f0fdf8' : '#ffeaea') : '#e8f5ff';
   actualizarResumen();
+}
+
+function actualizarResumen() {
+  let count = 0;
+  document.querySelectorAll('.inp-real').forEach(inp => {
+    if (inp.value !== '') count++;
+  });
+  document.getElementById('resumenInv').textContent =
+    count > 0 ? `${count} producto(s) con ajuste pendiente` : 'Sin cambios';
 }
 
 function actualizarResumen() {
@@ -287,11 +299,19 @@ function prepararInv() {
     alert('Selecciona una cuadrilla.');
     return false;
   }
-  const modificados = [];
+
+  // Habilitar TODOS los inputs con valor antes de enviar
+  let count = 0;
   document.querySelectorAll('.inp-real').forEach(inp => {
-    if (inp.value !== '') modificados.push(inp);
+    if (inp.value !== '') {
+      inp.closest('tr').querySelector('.inp-pid').disabled = false;
+      count++;
+    } else {
+      inp.closest('tr').querySelector('.inp-pid').disabled = true;
+    }
   });
-  if (modificados.length === 0) {
+
+  if (count === 0) {
     alert('No hay productos con ajuste. Ingresa el stock real de los productos que necesiten corrección.');
     return false;
   }
