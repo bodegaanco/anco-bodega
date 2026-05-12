@@ -40,7 +40,7 @@
           <td style="font-size:11px">{{ sc.producto.descripcion|truncate(28) }}</td>
           <td style="text-align:right">
             <strong style="color:{{ 'var(--danger)' if sc.cantidad == 0 else ('var(--warning)' if sc.cantidad <= sc.stock_min and sc.stock_min > 0 else 'inherit') }}">
-              {{ sc.cantidad }} {{ sc.producto.unidad }}
+              {{ sc.cantidad|num }} {{ sc.producto.unidad }}
             </strong>
           </td>
           <td>

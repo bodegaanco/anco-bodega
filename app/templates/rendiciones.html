@@ -86,7 +86,7 @@
         </td>
         <td>{{ r.cuadrilla.nombre }}</td>
         <td style="font-size:12px;color:var(--text-muted)">
-          {% for item in r.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada }}{{ ', ' if not loop.last }}{% endfor %}
+          {% for item in r.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad_usada|num }}{{ ', ' if not loop.last }}{% endfor %}
         </td>
         <td><span class="badge badge-ok">{{ r.items|length }} prod.</span></td>
         <td>

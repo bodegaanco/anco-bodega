@@ -38,11 +38,11 @@
         <td>{{ p.unidad }}</td>
         <td>
           <strong style="color:{{ 'var(--danger)' if alerta == 'critico' else ('var(--warning)' if alerta == 'bajo' else 'inherit') }}">
-            {{ p.stock_bodega }}
+            {{ p.stock_bodega|num }}
           </strong>
         </td>
         <td>
-          <span style="color:var(--text-muted)">{{ p.stock_min }}</span>
+          <span style="color:var(--text-muted)">{{ p.stock_min|num }}</span>
         </td>
         <td>
           {% if alerta == 'critico' %}<span class="badge badge-danger">⚠️ Crítico</span>
@@ -65,9 +65,9 @@
               '{{ p.descripcion|replace("'","\\'")|replace('"','\\"') }}',
               '{{ p.categoria }}',
               '{{ p.unidad }}',
-              {{ p.stock_min }}
+              {{ p.stock_min|num }}
             )" class="btn btn-outline btn-sm">✏️ Editar</button>
-          <button onclick="openAjuste({{ p.id }}, '{{ p.descripcion|replace("'","\\'")|truncate(30) }}', {{ p.stock_bodega }})"
+          <button onclick="openAjuste({{ p.id }}, '{{ p.descripcion|replace("'","\\'")|truncate(30) }}', {{ p.stock_bodega|num }})"
             class="btn btn-outline btn-sm">📦 Stock</button>
         </td>
       </tr>

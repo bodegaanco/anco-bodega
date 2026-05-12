@@ -4,10 +4,11 @@
 
 {% block content %}
 <div class="toolbar">
-  <span style="color:var(--text-muted);font-size:13px">Reajuste del stock real versus sistema</span>
+  <span style="color:var(--text-muted);font-size:13px">Ajuste del stock real versus sistema</span>
   <button onclick="openModal('inventarioModal')" class="btn btn-primary" style="margin-left:auto">+ Nuevo Inventario</button>
 </div>
 
+<!-- HISTORIAL -->
 <div class="card">
   <div class="card-header"><div class="card-title">📋 Historial de Inventarios</div></div>
   <table class="tbl">
@@ -18,9 +19,9 @@
         <td style="color:var(--text-muted)">{{ inv.creado_en.strftime('%d %b %Y %H:%M') }}</td>
         <td>
           {% if inv.tipo == 'bodega' %}
-            <span class="badge badge-warning">Bodega</span>
+            <span class="badge badge-warning">🏭 Bodega</span>
           {% else %}
-            <span class="badge badge-blue">{{ inv.cuadrilla.nombre if inv.cuadrilla else 'Cuadrilla' }}</span>
+            <span class="badge badge-blue">🚚 {{ inv.cuadrilla.nombre if inv.cuadrilla else 'Cuadrilla' }}</span>
           {% endif %}
         </td>
         <td>{{ inv.items|length }} producto(s)</td>
@@ -29,7 +30,7 @@
           {% if difs %}
             {% for item in difs %}
               <span class="badge {{ 'badge-danger' if item.diferencia < 0 else 'badge-ok' }}" style="margin:1px">
-                {{ item.producto.descripcion|truncate(20) }}: {{ '+' if item.diferencia > 0 }}{{ item.diferencia }}
+                {{ item.producto.descripcion|truncate(18) }}: {{ '+' if item.diferencia > 0 }}{{ item.diferencia|num }}
               </span>
             {% endfor %}
           {% else %}
@@ -47,72 +48,79 @@
 
 <!-- MODAL INVENTARIO -->
 <div class="modal-overlay" id="inventarioModal">
-  <div class="modal" style="width:700px;max-width:98vw">
-    <div class="modal-header">
-      <div class="modal-title">🔍 Registrar Inventario Físico</div>
+  <div class="modal" style="width:750px;max-width:98vw">
+    <div class="modal-header" id="invHeader">
+      <div class="modal-title">🔍 Nuevo Inventario Físico</div>
       <button class="modal-close" onclick="closeModal('inventarioModal')">✕</button>
     </div>
     <form method="POST" action="{{ url_for('inventario.nuevo') }}" id="invForm">
-      <div class="modal-body" style="padding:20px">
+      <div class="modal-body" style="padding:0">
 
-        <div class="form-row" style="margin-bottom:16px">
-          <div class="form-group" style="margin-bottom:0">
+        <!-- TIPO + CUADRILLA -->
+        <div style="padding:16px 20px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin-bottom:0;min-width:180px">
             <label class="form-label">Tipo de inventario</label>
-            <select class="form-select" name="tipo" id="tipo-select" onchange="toggleCuadrilla(this.value)">
-              <option value="bodega">Bodega Central</option>
-              <option value="cuadrilla">Cuadrilla</option>
+            <select class="form-select" name="tipo" id="tipo-select" onchange="cambiarTipo(this.value)">
+              <option value="bodega">🏭 Bodega Central</option>
+              <option value="cuadrilla">🚚 Cuadrilla</option>
             </select>
           </div>
-          <div class="form-group" id="cuadrilla-field" style="display:none;margin-bottom:0">
+          <div class="form-group" id="cuadrilla-field" style="display:none;margin-bottom:0;min-width:200px">
             <label class="form-label">Cuadrilla</label>
-            <select class="form-select" name="cuadrilla_id">
+            <select class="form-select" name="cuadrilla_id" id="cuadrilla-select" onchange="cargarStockCuadrilla(this.value)">
               <option value="">Seleccionar...</option>
               {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
             </select>
           </div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <input type="text" id="buscadorInv" class="form-input" placeholder="🔍 Filtrar productos..." style="width:200px" oninput="filtrarInv(this.value)">
+            <button type="button" onclick="desmarcarTodosInv()" class="btn btn-outline btn-sm">Limpiar</button>
+          </div>
         </div>
 
-        <!-- BUSCADOR + ESCÁNER -->
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-          <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos a contar</label>
-          <input type="text" id="buscadorInv" class="form-input" placeholder="🔍 Filtrar o escanear código..." style="flex:1" oninput="filtrarInv(this.value)">
-          <button type="button" onclick="marcarTodosInv()" class="btn btn-outline btn-sm">Marcar todos</button>
-          <button type="button" onclick="desmarcarTodosInv()" class="btn btn-outline btn-sm">Limpiar</button>
+        <!-- AVISO CARGA -->
+        <div id="avisoInv" style="padding:14px 20px;background:#eef5ff;border-bottom:1px solid var(--border);font-size:13px;color:var(--primary);font-weight:600;display:flex;align-items:center;gap:8px">
+          💡 Se muestran todos los productos con su stock actual. Modifica solo los que necesiten ajuste.
         </div>
 
-        <div id="contadorInv" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">0 productos seleccionados</div>
-
-        <!-- LISTA CON CHECKBOXES -->
-        <div style="max-height:360px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+        <!-- TABLA STOCKS -->
+        <div style="max-height:420px;overflow-y:auto">
           <table style="width:100%;border-collapse:collapse">
-            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
+            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1;border-bottom:2px solid var(--border)">
               <tr>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:36px;text-align:center">✓</th>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:80px;text-align:center">Sistema</th>
-                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cant. real</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--primary);font-weight:700;width:110px;text-align:center">Stock Sistema</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#2a9d8f;font-weight:700;width:130px;text-align:center">Stock Real</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;width:90px;text-align:center">Diferencia</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="tbodyInv">
               {% for p in productos %}
-              <tr class="prod-row-inv" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}" style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 12px;text-align:center">
-                  <input type="checkbox" class="chk-inv" data-pid="{{ p.id }}"
-                    style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"
-                    onchange="toggleCantidadInv(this)">
+              <tr class="inv-row" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}"
+                data-pid="{{ p.id }}" data-stock="{{ p.stock_bodega }}"
+                style="border-bottom:1px solid var(--border)">
+                <td style="padding:10px 16px">
+                  <div style="font-size:13px;font-weight:600">{{ p.descripcion }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">
+                    <span style="background:#f0f4f8;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:10px">{{ p.codigo }}</span>
+                    · {{ p.unidad }}
+                  </div>
                 </td>
-                <td style="padding:8px 12px">
-                  <div style="font-size:13px;font-weight:600;color:var(--text)">{{ p.descripcion }}</div>
-                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo-inv">{{ p.codigo }}</span> · {{ p.unidad }}</div>
+                <td style="padding:10px 16px;text-align:center">
+                  <span class="stock-sistema" style="font-size:18px;font-weight:800;color:var(--primary)">{{ p.stock_bodega|num }}</span>
+                  <div style="font-size:10px;color:var(--text-muted)">{{ p.unidad }}</div>
                 </td>
-                <td style="padding:8px 12px;text-align:center">
-                  <span class="badge badge-gray">{{ p.stock_bodega }}</span>
+                <td style="padding:8px 16px;text-align:center">
+                  <input type="hidden" name="producto_id[]" class="inp-pid" value="{{ p.id }}" disabled>
+                  <input type="number" class="form-input inp-real" data-pid="{{ p.id }}"
+                    placeholder="—" min="0" step="0.01"
+                    style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:95px;border:2px solid var(--border);border-radius:6px;color:var(--text)"
+                    oninput="actualizarDif(this)"
+                    onfocus="activarFila(this)"
+                    onblur="desactivarFila(this)">
                 </td>
-                <td style="padding:6px 12px;text-align:center">
-                  <input type="number" class="form-input cant-inv" data-pid="{{ p.id }}"
-                    placeholder="0" min="0" step="0.01"
-                    style="text-align:center;padding:5px 6px;font-size:13px;display:none"
-                    oninput="actualizarContadorInv()">
+                <td style="padding:10px 16px;text-align:center" id="dif-{{ p.id }}">
+                  <span style="font-size:13px;color:var(--text-muted)">—</span>
                 </td>
               </tr>
               {% endfor %}
@@ -120,13 +128,13 @@
           </table>
         </div>
 
-        <div class="info-box" style="margin-top:10px">💡 El sistema comparará con el stock registrado y ajustará la diferencia automáticamente.</div>
         <div id="hiddenInputsInv"></div>
       </div>
-      <div class="modal-footer">
-        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenInv"></div>
+
+      <div class="modal-footer" style="background:#f8fafc">
+        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenInv">Sin cambios</div>
         <button type="button" class="btn btn-outline" onclick="closeModal('inventarioModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary" onclick="return prepararInv()">Aplicar Inventario</button>
+        <button type="submit" class="btn btn-primary" onclick="return prepararInv()">✅ Aplicar Inventario</button>
       </div>
     </form>
   </div>
@@ -136,118 +144,210 @@
 {% block scripts %}
 {{ super() }}
 <script>
-  function toggleCuadrilla(val) {
-    document.getElementById('cuadrilla-field').style.display = val === 'cuadrilla' ? 'block' : 'none';
-  }
+// ── DATOS PRODUCTOS ──────────────────────────────────────────
+const PRODUCTOS_INV = [
+  {% for p in productos %}
+  { id: {{ p.id }}, stock: {{ p.stock_bodega }} }{{ ',' if not loop.last }}
+  {% endfor %}
+];
 
-  function filtrarInv(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('.prod-row-inv').forEach(row => {
-      row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
+// ── CAMBIAR TIPO ─────────────────────────────────────────────
+function cambiarTipo(tipo) {
+  const cf = document.getElementById('cuadrilla-field');
+  cf.style.display = tipo === 'cuadrilla' ? 'block' : 'none';
+  if (tipo === 'bodega') {
+    document.getElementById('invHeader').style.background = '#1a2b3c';
+    document.getElementById('avisoInv').textContent = '💡 Stocks de bodega central. Modifica solo los que necesiten ajuste.';
+    // Restaurar stocks bodega
+    document.querySelectorAll('.inv-row').forEach(row => {
+      const pid   = row.dataset.pid;
+      const stock = parseFloat(row.dataset.stock);
+      row.querySelector('.stock-sistema').textContent = formatNum(stock);
+      row.style.display = '';
     });
+    desmarcarTodosInv();
+  }
+}
+
+// ── CARGAR STOCK CUADRILLA ────────────────────────────────────
+async function cargarStockCuadrilla(cuadrillaId) {
+  if (!cuadrillaId) return;
+  document.getElementById('invHeader').style.background = '#2a6ab8';
+  document.getElementById('avisoInv').textContent = '⏳ Cargando stock teórico de la cuadrilla...';
+
+  const res   = await fetch(`/inventario/stock_cuadrilla/${cuadrillaId}`);
+  const stocks = await res.json();
+
+  // Ocultar todas las filas primero
+  document.querySelectorAll('.inv-row').forEach(row => {
+    row.style.display = 'none';
+    row.querySelector('.stock-sistema').textContent = '0';
+  });
+
+  if (stocks.length === 0) {
+    document.getElementById('avisoInv').textContent = '⚠️ Esta cuadrilla no tiene stock teórico registrado aún.';
+    return;
   }
 
-  function toggleCantidadInv(chk) {
-    const inp = document.querySelector(`.cant-inv[data-pid="${chk.dataset.pid}"]`);
-    if (chk.checked) {
-      inp.style.display = 'block'; inp.value = ''; inp.focus();
-      chk.closest('tr').style.background = '#f0f7ff';
-    } else {
-      inp.style.display = 'none'; inp.value = '';
-      chk.closest('tr').style.background = '';
-    }
-    actualizarContadorInv();
-  }
-
-  function actualizarContadorInv() {
-    const sel = document.querySelectorAll('.chk-inv:checked').length;
-    const cnt = document.getElementById('contadorInv');
-    cnt.style.display = sel > 0 ? 'block' : 'none';
-    cnt.textContent = `${sel} producto(s) seleccionado(s)`;
-    document.getElementById('resumenInv').textContent = sel > 0 ? `${sel} productos a contar` : '';
-  }
-
-  function marcarTodosInv() {
-    document.querySelectorAll('.prod-row-inv:not([style*="display: none"]) .chk-inv').forEach(chk => {
-      if (!chk.checked) { chk.checked = true; toggleCantidadInv(chk); }
-    });
-  }
-
-  function desmarcarTodosInv() {
-    document.querySelectorAll('.chk-inv:checked').forEach(chk => {
-      chk.checked = false; toggleCantidadInv(chk);
-    });
-    document.getElementById('buscadorInv').value = '';
-    filtrarInv('');
-  }
-
-  function prepararInv() {
-    const seleccionados = document.querySelectorAll('.chk-inv:checked');
-    if (seleccionados.length === 0) { alert('Selecciona al menos un producto.'); return false; }
-    const cont = document.getElementById('hiddenInputsInv');
-    cont.innerHTML = '';
-    seleccionados.forEach(chk => {
-      const pid  = chk.dataset.pid;
-      const cant = document.querySelector(`.cant-inv[data-pid="${pid}"]`).value;
-      const ip = document.createElement('input');
-      ip.type = 'hidden'; ip.name = 'producto_id[]'; ip.value = pid;
-      cont.appendChild(ip);
-      const ic = document.createElement('input');
-      ic.type = 'hidden'; ic.name = 'cantidad_real[]'; ic.value = cant === '' ? '0' : cant;
-      cont.appendChild(ic);
-    });
-    return true;
-  }
-
-  // ── ESCÁNER EYOYO — INVENTARIO ────────────────────────────────
-  let bufferInv = '', timerInv = null;
-
-  document.addEventListener('keydown', function(e) {
-    if (!document.getElementById('inventarioModal').classList.contains('open')) return;
-    const tag = document.activeElement.tagName;
-    const tipo = document.activeElement.type;
-    if (tag === 'INPUT' && (tipo === 'text' || tipo === 'number' || tipo === 'search')) return;
-    if (e.key === 'Enter') {
-      const cod = bufferInv.trim(); bufferInv = ''; clearTimeout(timerInv);
-      if (cod.length >= 6) procesarEscanerInv(cod);
-    } else if (e.key.length === 1) {
-      bufferInv += e.key; clearTimeout(timerInv);
-      timerInv = setTimeout(() => { bufferInv = ''; }, 100);
+  // Mostrar solo los que tienen stock en esta cuadrilla
+  stocks.forEach(s => {
+    const row = document.querySelector(`.inv-row[data-pid="${s.producto_id}"]`);
+    if (row) {
+      row.style.display = '';
+      row.querySelector('.stock-sistema').textContent = formatNum(s.cantidad);
     }
   });
 
-  function procesarEscanerInv(codigo) {
-    let encontrado = false;
-    document.querySelectorAll('.prod-row-inv').forEach(fila => {
-      const chk = fila.querySelector('.chk-inv');
-      const codEl = fila.querySelector('.text-codigo-inv');
-      if (!chk || !codEl) return;
-      if (codEl.textContent.trim() === codigo) {
-        encontrado = true;
-        fila.style.display = '';
-        if (!chk.checked) { chk.checked = true; toggleCantidadInv(chk); }
-        const inp = fila.querySelector('.cant-inv');
-        if (inp) { inp.focus(); inp.select(); }
-        fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        fila.style.background = '#d4edda';
-        setTimeout(() => { fila.style.background = '#f0f7ff'; }, 800);
-      }
-    });
-    toastEscanerInv(encontrado ? `✅ ${codigo} — producto marcado` : `⚠️ Código ${codigo} no encontrado`);
+  desmarcarTodosInv();
+  document.getElementById('avisoInv').textContent = `✅ Mostrando ${stocks.length} producto(s) con stock en esta cuadrilla. Modifica los que necesiten ajuste.`;
+  document.getElementById('avisoInv').style.background = '#e8f5f3';
+  document.getElementById('avisoInv').style.color = '#2a9d8f';
+}
+
+// ── FILTRAR ───────────────────────────────────────────────────
+function filtrarInv(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.inv-row').forEach(row => {
+    if (row.style.display === 'none' && document.getElementById('tipo-select').value === 'cuadrilla') return;
+    row.style.display = row.dataset.nombre.includes(q) ? '' : 'none';
+  });
+}
+
+// ── ACTIVAR/DESACTIVAR FILA ───────────────────────────────────
+function activarFila(inp) {
+  const row = inp.closest('tr');
+  row.style.background = '#e8f5ff';
+  inp.style.borderColor = 'var(--primary)';
+  // Habilitar hidden input
+  row.querySelector('.inp-pid').disabled = false;
+}
+
+function desactivarFila(inp) {
+  const row = inp.closest('tr');
+  if (!inp.value) {
+    row.style.background = '';
+    inp.style.borderColor = 'var(--border)';
+    row.querySelector('.inp-pid').disabled = true;
+  }
+}
+
+// ── CALCULAR DIFERENCIA EN TIEMPO REAL ───────────────────────
+function actualizarDif(inp) {
+  const pid      = inp.dataset.pid;
+  const row      = inp.closest('tr');
+  const stockSis = parseFloat(row.querySelector('.stock-sistema').textContent) || 0;
+  const stockReal = parseFloat(inp.value);
+  const difEl    = document.getElementById(`dif-${pid}`);
+
+  if (isNaN(stockReal) || inp.value === '') {
+    difEl.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
+    row.querySelector('.inp-pid').disabled = true;
+    actualizarResumen();
+    return;
   }
 
-  function toastEscanerInv(msg) {
-    let t = document.getElementById('toastEscInv');
-    if (!t) {
-      t = document.createElement('div');
-      t.id = 'toastEscInv';
-      t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #f4a261;display:none;max-width:300px';
-      document.body.appendChild(t);
-    }
-    t.textContent = msg;
-    t.style.display = 'block';
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
+  row.querySelector('.inp-pid').disabled = false;
+  const dif = stockReal - stockSis;
+  const color = dif > 0 ? 'var(--success)' : dif < 0 ? 'var(--danger)' : 'var(--text-muted)';
+  const icon  = dif > 0 ? '▲' : dif < 0 ? '▼' : '=';
+  difEl.innerHTML = `<span style="font-size:15px;font-weight:800;color:${color}">${icon} ${formatNum(Math.abs(dif))}</span>`;
+
+  actualizarResumen();
+}
+
+function actualizarResumen() {
+  const modificados = document.querySelectorAll('.inp-real[value]:not([value=""]),.inp-real').length;
+  let count = 0;
+  document.querySelectorAll('.inp-real').forEach(inp => {
+    if (inp.value !== '') count++;
+  });
+  document.getElementById('resumenInv').textContent =
+    count > 0 ? `${count} producto(s) con ajuste pendiente` : 'Sin cambios';
+}
+
+// ── LIMPIAR ───────────────────────────────────────────────────
+function desmarcarTodosInv() {
+  document.querySelectorAll('.inp-real').forEach(inp => {
+    inp.value = '';
+    inp.style.borderColor = 'var(--border)';
+    inp.closest('tr').style.background = '';
+    inp.closest('tr').querySelector('.inp-pid').disabled = true;
+  });
+  document.querySelectorAll('[id^="dif-"]').forEach(el => {
+    el.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
+  });
+  document.getElementById('resumenInv').textContent = 'Sin cambios';
+  document.getElementById('buscadorInv').value = '';
+}
+
+// ── PREPARAR SUBMIT ───────────────────────────────────────────
+function prepararInv() {
+  const tipo = document.getElementById('tipo-select').value;
+  if (tipo === 'cuadrilla' && !document.getElementById('cuadrilla-select').value) {
+    alert('Selecciona una cuadrilla.');
+    return false;
   }
+  const modificados = [];
+  document.querySelectorAll('.inp-real').forEach(inp => {
+    if (inp.value !== '') modificados.push(inp);
+  });
+  if (modificados.length === 0) {
+    alert('No hay productos con ajuste. Ingresa el stock real de los productos que necesiten corrección.');
+    return false;
+  }
+  return true;
+}
+
+// ── FORMATO NUMERO ────────────────────────────────────────────
+function formatNum(n) {
+  if (n === null || n === undefined) return '0';
+  const f = parseFloat(n);
+  if (f === Math.floor(f)) return String(Math.floor(f));
+  return parseFloat(f.toFixed(4)).toString().replace(/\.?0+$/, '');
+}
+
+// ── ESCÁNER EYOYO ─────────────────────────────────────────────
+let bufferInv = '', timerInv = null;
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('inventarioModal').classList.contains('open')) return;
+  if (document.activeElement.classList.contains('inp-real')) return;
+  if (document.activeElement.id === 'buscadorInv') return;
+
+  if (e.key === 'Enter') {
+    e.preventDefault(); e.stopPropagation();
+    const cod = bufferInv.trim(); bufferInv = ''; clearTimeout(timerInv);
+    if (cod.length >= 6) {
+      let found = false;
+      document.querySelectorAll('.inv-row').forEach(row => {
+        if (row.dataset.nombre.includes(cod.toLowerCase())) {
+          found = true;
+          row.style.display = '';
+          const inp = row.querySelector('.inp-real');
+          inp.focus(); inp.select();
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.style.background = '#e8f5ff';
+        }
+      });
+      if (!found) toastInv(`⚠️ Código ${cod} no encontrado`);
+    }
+  } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+    bufferInv += e.key; clearTimeout(timerInv);
+    timerInv = setTimeout(() => { bufferInv = ''; }, 150);
+  }
+}, true);
+
+function toastInv(msg) {
+  let t = document.getElementById('toastInv');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toastInv';
+    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #f4a261;display:none;max-width:300px';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
 </script>
 {% endblock %}

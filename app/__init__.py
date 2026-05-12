@@ -9,6 +9,19 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
 
+    # Filtro para mostrar numeros sin ceros innecesarios: 1.5 en vez de 1.0 o 1.50000
+    @app.template_filter('num')
+    def num_filter(value):
+        if value is None:
+            return '0'
+        try:
+            f = float(value)
+            if f == int(f):
+                return str(int(f))
+            return f'{f:g}'
+        except:
+            return str(value)
+
     # Configuración
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'anco-bodega-secret-2025')
 

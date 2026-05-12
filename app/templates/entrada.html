@@ -15,7 +15,7 @@
           <select class="form-select" name="producto_id[]" required>
             <option value="">Seleccionar producto...</option>
             {% for p in productos %}
-            <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }}) · Stock: {{ p.stock_bodega }}</option>
+            <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }}) · Stock: {{ p.stock_bodega|num }}</option>
             {% endfor %}
           </select>
           <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1" required>

@@ -34,7 +34,7 @@ class Producto(db.Model):
     unidad      = db.Column(db.String(10), default='C/U')   # C/U | M | KG
     categoria   = db.Column(db.String(50), default='General')
     stock_min   = db.Column(db.Integer, default=0)          # alerta de stock bajo
-    stock_bodega= db.Column(db.Integer, default=0)          # stock actual en bodega
+    stock_bodega= db.Column(db.Float, default=0)            # stock actual en bodega
     activo      = db.Column(db.Boolean, default=True)
     creado_en   = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -73,7 +73,7 @@ class StockCuadrilla(db.Model):
     id           = db.Column(db.Integer, primary_key=True)
     cuadrilla_id = db.Column(db.Integer, db.ForeignKey('cuadrillas.id'), nullable=False)
     producto_id  = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
-    cantidad     = db.Column(db.Integer, default=0)
+    cantidad     = db.Column(db.Float, default=0)
     stock_min    = db.Column(db.Integer, default=0)
     actualizado  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -92,7 +92,7 @@ class Entrada(db.Model):
     __tablename__ = 'entradas'
     id           = db.Column(db.Integer, primary_key=True)
     producto_id  = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
-    cantidad     = db.Column(db.Integer, nullable=False)
+    cantidad     = db.Column(db.Float, nullable=False)
     stock_antes  = db.Column(db.Integer)
     stock_despues= db.Column(db.Integer)
     usuario_id   = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
@@ -122,7 +122,7 @@ class SalidaItem(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     salida_id   = db.Column(db.Integer, db.ForeignKey('salidas.id'), nullable=False)
     producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
-    cantidad    = db.Column(db.Integer, nullable=False)
+    cantidad    = db.Column(db.Float, nullable=False)
 
     producto    = db.relationship('Producto')
 
@@ -149,7 +149,7 @@ class RendicionItem(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
     rendicion_id  = db.Column(db.Integer, db.ForeignKey('rendiciones.id'), nullable=False)
     producto_id   = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
-    cantidad_usada= db.Column(db.Integer, nullable=False)
+    cantidad_usada= db.Column(db.Float, nullable=False)
 
     producto      = db.relationship('Producto')
 

@@ -50,7 +50,7 @@
         <td>{{ sc.producto.unidad }}</td>
         <td style="text-align:right">
           <strong style="color:{{ 'var(--danger)' if alerta == 'critico' else ('var(--warning)' if alerta == 'bajo' else 'inherit') }}">
-            {{ sc.cantidad }}
+            {{ sc.cantidad|num }}
           </strong>
         </td>
         <td>
@@ -87,7 +87,7 @@
         <td style="font-size:12px">
           {% for item in s.items %}
             <span style="display:inline-block;background:#eef5ff;color:var(--primary);border-radius:4px;padding:2px 7px;margin:1px;font-size:11px;font-weight:600">
-              {{ item.producto.descripcion|truncate(25) }} × {{ item.cantidad }}
+              {{ item.producto.descripcion|truncate(25) }} × {{ item.cantidad|num }}
             </span>
           {% endfor %}
         </td>

@@ -25,7 +25,7 @@
         <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %H:%M') }}</td>
         <td><strong>{{ s.cuadrilla.nombre }}</strong></td>
         <td style="font-size:12px;color:var(--text-muted)">
-          {% for item in s.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad }}{{ ', ' if not loop.last }}{% endfor %}
+          {% for item in s.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad|num }}{{ ', ' if not loop.last }}{% endfor %}
         </td>
         <td><span class="badge badge-blue">{{ s.items|length }}</span></td>
         <td>

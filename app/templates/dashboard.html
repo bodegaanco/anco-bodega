@@ -43,7 +43,7 @@
           <div style="font-size:11px;color:var(--text-muted)">Bodega Central · {{ p.codigo }}</div>
         </div>
         <span class="badge {{ 'badge-danger' if p.stock_bodega <= 0 else 'badge-warning' }}">
-          {{ p.stock_bodega }} / mín {{ p.stock_min }}
+          {{ p.stock_bodega|num }} / mín {{ p.stock_min|num }}
         </span>
       </div>
       {% endfor %}

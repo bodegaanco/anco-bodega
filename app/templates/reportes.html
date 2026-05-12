@@ -62,9 +62,9 @@
         {% for p in compras %}
         <tr class="{{ 'tbl-row-danger' if p.stock_bodega == 0 else 'tbl-row-warning' }}">
           <td style="font-size:12px"><strong>{{ p.descripcion|truncate(35) }}</strong><br><span style="color:var(--text-muted)">{{ p.codigo }}</span></td>
-          <td><strong style="color:{{ 'var(--danger)' if p.stock_bodega == 0 else 'var(--warning)' }}">{{ p.stock_bodega }}</strong></td>
+          <td><strong style="color:{{ 'var(--danger)' if p.stock_bodega == 0 else 'var(--warning)' }}">{{ p.stock_bodega|num }}</strong></td>
           <td>{{ p.stock_min }}</td>
-          <td><span class="badge badge-danger">{{ p.stock_min - p.stock_bodega }} {{ p.unidad }}</span></td>
+          <td><span class="badge badge-danger">{{ (p.stock_min - p.stock_bodega)|num }} {{ p.unidad }}</span></td>
         </tr>
         {% endfor %}
       </tbody>

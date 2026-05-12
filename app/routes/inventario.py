@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app.models import Inventario, InventarioItem, Cuadrilla, Producto, StockCuadrilla
 from app import db
@@ -13,6 +13,23 @@ def index():
     productos   = Producto.query.filter_by(activo=True).order_by(Producto.descripcion).all()
     return render_template('inventario.html',
         inventarios=inventarios, cuadrillas=cuadrillas, productos=productos)
+
+@inventario_bp.route('/stock_cuadrilla/<int:cuadrilla_id>')
+@login_required
+def stock_cuadrilla(cuadrilla_id):
+    """API: retorna stock teorico de una cuadrilla para precargar inventario"""
+    stocks = StockCuadrilla.query.filter_by(cuadrilla_id=cuadrilla_id).all()
+    data = []
+    for sc in stocks:
+        if sc.cantidad > 0:
+            data.append({
+                'producto_id': sc.producto_id,
+                'nombre':      sc.producto.descripcion,
+                'codigo':      sc.producto.codigo,
+                'unidad':      sc.producto.unidad,
+                'cantidad':    sc.cantidad,
+            })
+    return jsonify(data)
 
 @inventario_bp.route('/nuevo', methods=['POST'])
 @login_required
@@ -29,14 +46,16 @@ def nuevo():
     for pid, cant_real in zip(producto_ids, cantidades):
         if not pid or cant_real == '':
             continue
-        producto   = Producto.query.get(pid)
-        cant_real  = int(cant_real)
+        producto  = Producto.query.get(pid)
+        cant_real = float(cant_real)
 
         if tipo == 'bodega':
-            stock_sistema        = producto.stock_bodega
-            diferencia           = cant_real - stock_sistema
+            # Solo toca stock bodega — NO toca cuadrillas
+            stock_sistema         = producto.stock_bodega
+            diferencia            = cant_real - stock_sistema
             producto.stock_bodega = cant_real
         else:
+            # Solo toca stock cuadrilla — NO toca bodega
             sc = StockCuadrilla.query.filter_by(
                 cuadrilla_id=cuadrilla_id, producto_id=pid).first()
             stock_sistema = sc.cantidad if sc else 0

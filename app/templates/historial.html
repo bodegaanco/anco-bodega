@@ -43,7 +43,7 @@
             <td style="font-size:12px">
               {% for item in s.items %}
                 <span style="display:inline-block;background:#eef5ff;color:var(--primary);border-radius:4px;padding:2px 7px;margin:1px;font-size:11px;font-weight:600">
-                  {{ item.producto.descripcion|truncate(28) }} × {{ item.cantidad }}
+                  {{ item.producto.descripcion|truncate(28) }} × {{ item.cantidad|num }}
                 </span>
               {% endfor %}
             </td>
@@ -76,7 +76,7 @@
             <td style="font-size:12px">
               {% for item in s.items %}
                 <span style="display:inline-block;background:#eef5ff;color:var(--primary);border-radius:4px;padding:2px 7px;margin:1px;font-size:11px;font-weight:600">
-                  {{ item.producto.descripcion|truncate(28) }} × {{ item.cantidad }}
+                  {{ item.producto.descripcion|truncate(28) }} × {{ item.cantidad|num }}
                 </span>
               {% endfor %}
             </td>
