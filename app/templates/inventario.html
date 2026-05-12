@@ -111,8 +111,7 @@
                   <div style="font-size:10px;color:var(--text-muted)">{{ p.unidad }}</div>
                 </td>
                 <td style="padding:8px 16px;text-align:center">
-                  <input type="hidden" name="producto_id[]" class="inp-pid" value="{{ p.id }}" disabled>
-                  <input type="number" class="form-input inp-real" data-pid="{{ p.id }}"
+                  <input type="number" class="form-input inp-real" data-pid="{{ p.id }}" data-nombre="{{ p.descripcion }}"
                     placeholder="—" min="0" step="0.01"
                     style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:95px;border:2px solid var(--border);border-radius:6px;color:var(--text)"
                     oninput="actualizarDif(this)"
@@ -218,8 +217,6 @@ function activarFila(inp) {
   const row = inp.closest('tr');
   row.style.background = '#e8f5ff';
   inp.style.borderColor = 'var(--primary)';
-  // Habilitar hidden input
-  row.querySelector('.inp-pid').disabled = false;
 }
 
 function desactivarFila(inp) {
@@ -227,7 +224,6 @@ function desactivarFila(inp) {
   if (!inp.value) {
     row.style.background = '';
     inp.style.borderColor = 'var(--border)';
-    row.querySelector('.inp-pid').disabled = true;
   }
 }
 
@@ -242,12 +238,10 @@ function actualizarDif(inp) {
 
   if (isNaN(stockReal) || inp.value === '') {
     difEl.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
-    row.querySelector('.inp-pid').disabled = true;
-    actualizarResumen();
+      actualizarResumen();
     return;
   }
 
-  row.querySelector('.inp-pid').disabled = false;
   const dif   = Math.round((stockReal - stockSis) * 10000) / 10000;
   const color = dif > 0 ? 'var(--success)' : dif < 0 ? 'var(--danger)' : 'var(--text-muted)';
   const icon  = dif > 0 ? '▲' : dif < 0 ? '▼' : '=';
@@ -283,7 +277,6 @@ function desmarcarTodosInv() {
     inp.value = '';
     inp.style.borderColor = 'var(--border)';
     inp.closest('tr').style.background = '';
-    inp.closest('tr').querySelector('.inp-pid').disabled = true;
   });
   document.querySelectorAll('[id^="dif-"]').forEach(el => {
     el.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
@@ -300,21 +293,36 @@ function prepararInv() {
     return false;
   }
 
-  // Habilitar TODOS los inputs con valor antes de enviar
-  let count = 0;
+  // Recopilar solo los productos con valor ingresado
+  const filas = [];
   document.querySelectorAll('.inp-real').forEach(inp => {
-    if (inp.value !== '') {
-      inp.closest('tr').querySelector('.inp-pid').disabled = false;
-      count++;
-    } else {
-      inp.closest('tr').querySelector('.inp-pid').disabled = true;
+    if (inp.value !== '' && inp.value !== null) {
+      filas.push({ pid: inp.dataset.pid, cant: inp.value });
     }
   });
 
-  if (count === 0) {
+  if (filas.length === 0) {
     alert('No hay productos con ajuste. Ingresa el stock real de los productos que necesiten corrección.');
     return false;
   }
+
+  // Eliminar inputs previos generados
+  document.querySelectorAll('.inv-hidden-gen').forEach(el => el.remove());
+
+  // Crear pares de hidden inputs solo para los productos modificados
+  const form = document.getElementById('invForm');
+  filas.forEach(f => {
+    const ip = document.createElement('input');
+    ip.type = 'hidden'; ip.name = 'producto_id[]';
+    ip.value = f.pid; ip.className = 'inv-hidden-gen';
+    form.appendChild(ip);
+
+    const ic = document.createElement('input');
+    ic.type = 'hidden'; ic.name = 'cantidad_real[]';
+    ic.value = f.cant; ic.className = 'inv-hidden-gen';
+    form.appendChild(ic);
+  });
+
   return true;
 }
 
