@@ -275,3 +275,93 @@ def editar_rendicion(id):
     flash(f'✅ OT {rendicion.numero_ot} actualizada — vuelve a estado pendiente para re-revisar', 'success')
     return redirect(url_for('movimientos.rendiciones'))
 
+
+
+# ── DETALLE SALIDA (API para modal) ──────────────────────────────────────────
+@movimientos_bp.route('/salidas/<int:id>/detalle')
+@login_required
+def detalle_salida(id):
+    from flask import jsonify
+    from app.models import RendicionSalida
+    salida = Salida.query.get_or_404(id)
+    rend   = salida.rendicion
+
+    items = []
+    for item in salida.items:
+        rendido = 0
+        if rend:
+            ri = next((r for r in rend.items if r.producto_id == item.producto_id), None)
+            if ri:
+                rendido = ri.cantidad_rendida
+        items.append({
+            'salida_item_id': item.id,
+            'producto_id':    item.producto_id,
+            'codigo':         item.producto.codigo,
+            'nombre':         item.producto.descripcion,
+            'unidad':         item.producto.unidad,
+            'entregado':      item.cantidad,
+            'rendido':        rendido,
+            'saldo':          item.cantidad - rendido,
+        })
+    return jsonify({
+        'salida_id':   salida.id,
+        'cuadrilla':   salida.cuadrilla.nombre,
+        'fecha':       salida.creado_en.strftime('%d %b %Y %H:%M'),
+        'notas':       salida.notas or '',
+        'tiene_rendicion': rend is not None,
+        'rendicion_fecha': rend.creado_en.strftime('%d %b %Y') if rend else None,
+        'items': items,
+    })
+
+
+# ── REGISTRAR RENDICION POR SALIDA ───────────────────────────────────────────
+@movimientos_bp.route('/salidas/<int:id>/rendir', methods=['POST'])
+@login_required
+def rendir_salida(id):
+    from app.models import RendicionSalida, RendicionSalidaItem
+    salida = Salida.query.get_or_404(id)
+
+    if salida.rendicion:
+        flash('Esta entrega ya tiene una rendición registrada', 'error')
+        return redirect(url_for('movimientos.salidas'))
+
+    notas         = request.form.get('notas', '')
+    salida_item_ids = request.form.getlist('salida_item_id[]')
+    cantidades      = request.form.getlist('cantidad_rendida[]')
+
+    rend = RendicionSalida(
+        salida_id=salida.id,
+        cuadrilla_id=salida.cuadrilla_id,
+        usuario_id=current_user.id,
+        notas=notas
+    )
+    db.session.add(rend)
+    db.session.flush()
+
+    for sid, cant in zip(salida_item_ids, cantidades):
+        cant = float(cant) if cant else 0
+        if cant <= 0:
+            continue
+        item = SalidaItem.query.get(int(sid))
+        if not item:
+            continue
+
+        ri = RendicionSalidaItem(
+            rendicion_id=rend.id,
+            salida_item_id=item.id,
+            producto_id=item.producto_id,
+            cantidad_rendida=cant
+        )
+        db.session.add(ri)
+
+        # Descontar del stock cuadrilla
+        sc = StockCuadrilla.query.filter_by(
+            cuadrilla_id=salida.cuadrilla_id,
+            producto_id=item.producto_id
+        ).first()
+        if sc:
+            sc.cantidad = max(0, sc.cantidad - cant)
+
+    db.session.commit()
+    flash(f'✅ Rendición registrada para la entrega #{salida.id}', 'success')
+    return redirect(url_for('movimientos.salidas'))

@@ -17,7 +17,7 @@
 <div class="card">
   <table class="tbl">
     <thead>
-      <tr><th>Fecha/Hora</th><th>Cuadrilla</th><th>Productos</th><th>Total</th><th>Notas</th><th>Acción</th></tr>
+      <tr><th>Fecha/Hora</th><th>Cuadrilla</th><th>Productos</th><th>Items</th><th>Rendición</th><th>Acción</th></tr>
     </thead>
     <tbody>
       {% for s in salidas %}
@@ -25,17 +25,30 @@
         <td style="color:var(--text-muted)">{{ s.creado_en.strftime('%d %b %H:%M') }}</td>
         <td><strong>{{ s.cuadrilla.nombre }}</strong></td>
         <td style="font-size:12px;color:var(--text-muted)">
-          {% for item in s.items %}{{ item.producto.descripcion|truncate(25) }} × {{ item.cantidad }}{{ ', ' if not loop.last }}{% endfor %}
+          {% for item in s.items %}{{ item.producto.descripcion|truncate(22) }} × {{ item.cantidad }}{{ ', ' if not loop.last }}{% endfor %}
         </td>
-        <td><span class="badge badge-blue">{{ s.items|length }} prod.</span></td>
-        <td style="color:var(--text-muted)">{{ s.notas or '—' }}</td>
+        <td><span class="badge badge-blue">{{ s.items|length }}</span></td>
         <td>
           {% if s.anulada %}
-            <span class="badge badge-danger">✕ Anulada</span>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:3px">{{ s.motivo_anulacion }}</div>
+            <span class="badge badge-danger">Anulada</span>
+          {% elif s.rendicion %}
+            <span class="badge badge-ok">✅ Rendida</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ s.rendicion.creado_en.strftime('%d %b') }}</div>
           {% else %}
-            <button onclick="openAnular({{ s.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+            <span class="badge badge-warning">⏳ Sin rendir</span>
           {% endif %}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px">
+            {% if not s.anulada %}
+              <button onclick="verDetalle({{ s.id }})" class="btn btn-outline btn-sm">
+                {{ '📊 Ver' if s.rendicion else '📋 Ver / Rendir' }}
+              </button>
+              <button onclick="openAnular({{ s.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
+            {% else %}
+              <span class="badge badge-danger">✕ {{ s.motivo_anulacion|truncate(20) }}</span>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% else %}
@@ -45,9 +58,20 @@
   </table>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════
-     MODAL SALIDA MANUAL (checkboxes)
-════════════════════════════════════════════════════════════════ -->
+<!-- ══ MODAL DETALLE + RENDICIÓN ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="detalleModal">
+  <div class="modal" style="width:720px;max-width:98vw">
+    <div class="modal-header" id="detalleHeader">
+      <div class="modal-title" id="detalleTitulo">Detalle Entrega</div>
+      <button class="modal-close" onclick="closeModal('detalleModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0" id="detalleBody">
+      <div style="padding:40px;text-align:center;color:var(--text-muted)">Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL SALIDA MANUAL ════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="salidaManualModal">
   <div class="modal" style="width:700px;max-width:98vw">
     <div class="modal-header">
@@ -71,13 +95,13 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
           <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos</label>
-          <input type="text" id="buscadorManual" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarManual(this.value)">
-          <button type="button" onclick="marcarTodosManual()" class="btn btn-outline btn-sm">Marcar todos</button>
+          <input type="text" id="buscadorManual" class="form-input" placeholder="🔍 Filtrar..." style="flex:1" oninput="filtrarManual(this.value)">
+          <button type="button" onclick="marcarTodosManual()" class="btn btn-outline btn-sm">Todos</button>
           <button type="button" onclick="desmarcarTodosManual()" class="btn btn-outline btn-sm">Limpiar</button>
           <button type="button" onclick="cargarFavoritosManual()" class="btn btn-outline btn-sm" style="color:#f4a261;border-color:#f4a261">⭐</button>
         </div>
-        <div id="contadorManual" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none">0 seleccionados</div>
-        <div style="max-height:350px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+        <div id="contadorManual" style="font-size:12px;color:var(--primary);font-weight:600;margin-bottom:8px;display:none"></div>
+        <div style="max-height:340px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
           <table style="width:100%;border-collapse:collapse">
             <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
               <tr>
@@ -124,9 +148,7 @@
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════
-     MODAL SALIDA CON ESCÁNER
-════════════════════════════════════════════════════════════════ -->
+<!-- ══ MODAL SALIDA ESCÁNER ═══════════════════════════════════════════════ -->
 <div class="modal-overlay" id="salidaEscanerModal">
   <div class="modal" style="width:680px;max-width:98vw">
     <div class="modal-header" style="background:#2a6ab8">
@@ -135,7 +157,6 @@
     </div>
     <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaEscanerForm">
       <div class="modal-body" style="padding:20px">
-
         <div class="form-row" style="margin-bottom:16px">
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Cuadrilla</label>
@@ -149,27 +170,20 @@
             <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
           </div>
         </div>
-
-        <!-- BUSCADOR + ESCÁNER -->
         <div style="background:#eef5ff;border-radius:8px;padding:14px;margin-bottom:14px">
-          <label class="form-label" style="color:var(--primary)">🔍 Buscar producto (escribe o escanea)</label>
+          <label class="form-label" style="color:var(--primary)">🔍 Buscar o escanear producto</label>
           <input type="text" id="inputEscaner" class="form-input"
             placeholder="Escribe nombre o escanea código de barras..."
             oninput="buscarProductoEscaner(this.value)"
             autocomplete="off" style="font-size:14px">
-          <!-- SUGERENCIAS -->
-          <div id="sugerenciasEscaner" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:9999;position:relative"></div>
+          <div id="sugerenciasEscaner" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:4px;max-height:200px;overflow-y:auto;position:relative;z-index:9999"></div>
         </div>
-
-        <!-- LISTA DE PRODUCTOS AGREGADOS -->
         <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
           <label class="form-label" style="margin-bottom:0">Productos a entregar</label>
           <span id="contadorEscaner" style="font-size:12px;color:var(--primary);font-weight:600">0 productos</span>
         </div>
         <div id="listaEscaner" style="min-height:60px;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
-          <div id="listaEscanerVacia" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">
-            Escanea o busca productos para agregarlos aquí
-          </div>
+          <div id="listaEscanerVacia" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">Escanea o busca productos para agregarlos aquí</div>
           <table id="tablaEscaner" style="width:100%;border-collapse:collapse;display:none">
             <thead style="background:#f8fafc">
               <tr>
@@ -181,9 +195,8 @@
             <tbody id="tbodyEscaner"></tbody>
           </table>
         </div>
-
         <div id="hiddenEscaner"></div>
-        <div class="info-box" style="margin-top:10px">💡 Escanea el código de barras de la etiqueta o escribe el nombre del producto para buscarlo.</div>
+        <div class="info-box" style="margin-top:10px">💡 Escanea el código de barras de la etiqueta o escribe el nombre del producto.</div>
       </div>
       <div class="modal-footer">
         <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenEscaner"></div>
@@ -194,7 +207,7 @@
   </div>
 </div>
 
-<!-- MODAL ANULAR -->
+<!-- ══ MODAL ANULAR ═══════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="anularModal">
   <div class="modal">
     <div class="modal-header" style="background:#e63946">
@@ -204,11 +217,11 @@
     <form method="POST" id="anularForm" action="">
       <div class="modal-body">
         <div style="background:#ffeaea;border-radius:6px;padding:12px;font-size:13px;color:#e63946;font-weight:600;margin-bottom:14px">
-          ⚠️ El registro quedará marcado como ANULADO y el stock se revertirá automáticamente.
+          ⚠️ El registro quedará ANULADO y el stock se revertirá automáticamente.
         </div>
         <div class="form-group">
           <label class="form-label">Motivo de anulación</label>
-          <input type="text" name="motivo" class="form-input" placeholder="Ej: Error en cantidad, cuadrilla incorrecta..." required>
+          <input type="text" name="motivo" class="form-input" placeholder="Ej: Error en cantidad..." required>
         </div>
       </div>
       <div class="modal-footer">
@@ -223,16 +236,200 @@
 {% block scripts %}
 {{ super() }}
 <script>
-// ── DATOS PRODUCTOS ───────────────────────────────────────────────
 const PRODUCTOS = [
   {% for p in productos_select %}
   { id: {{ p.id }}, codigo: '{{ p.codigo }}', nombre: '{{ p.descripcion|replace("'","\\'") }}', unidad: '{{ p.unidad }}', stock: {{ p.stock_bodega }} }{{ ',' if not loop.last }}
   {% endfor %}
 ];
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+// DETALLE + RENDICIÓN POR SALIDA
+// ════════════════════════════════════════════════════════
+async function verDetalle(salidaId) {
+  openModal('detalleModal');
+  document.getElementById('detalleBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">Cargando...</div>';
+
+  const res  = await fetch(`/movimientos/salidas/${salidaId}/detalle`);
+  const data = await res.json();
+
+  document.getElementById('detalleTitulo').textContent = `Entrega #${data.salida_id} — ${data.cuadrilla}`;
+
+  let html = `
+    <div style="padding:16px 20px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;gap:16px;font-size:13px">
+      <span style="color:var(--text-muted)">📅 ${data.fecha}</span>
+      <span style="color:var(--text-muted)">🚚 ${data.cuadrilla}</span>
+      ${data.notas ? `<span style="color:var(--text-muted)">📝 ${data.notas}</span>` : ''}
+    </div>`;
+
+  // Tabla entregado vs rendido vs saldo
+  html += `
+    <table class="tbl">
+      <thead><tr>
+        <th>Producto</th>
+        <th style="text-align:center;width:100px">Entregado</th>
+        <th style="text-align:center;width:100px">Rendido</th>
+        <th style="text-align:center;width:100px">Saldo</th>
+      </tr></thead>
+      <tbody>`;
+
+  data.items.forEach(item => {
+    const saldoColor = item.saldo > 0 ? 'var(--warning)' : item.saldo < 0 ? 'var(--danger)' : 'var(--success)';
+    const saldoIcon  = item.saldo > 0 ? '⚠️' : item.saldo < 0 ? '❌' : '✅';
+    html += `
+      <tr>
+        <td>
+          <strong style="font-size:13px">${item.nombre}</strong>
+          <div style="font-size:11px;color:var(--text-muted)">${item.codigo} · ${item.unidad}</div>
+        </td>
+        <td style="text-align:center"><span class="badge badge-blue">${item.entregado}</span></td>
+        <td style="text-align:center"><span class="badge ${item.rendido > 0 ? 'badge-ok' : 'badge-gray'}">${item.rendido}</span></td>
+        <td style="text-align:center"><strong style="color:${saldoColor}">${saldoIcon} ${item.saldo > 0 ? '+' : ''}${item.saldo}</strong></td>
+      </tr>`;
+  });
+  html += `</tbody></table>`;
+
+  if (data.tiene_rendicion) {
+    html += `
+      <div style="padding:14px 20px;background:#e8f5f3;border-top:1px solid var(--border)">
+        <span style="color:var(--success);font-weight:600;font-size:13px">✅ Rendición registrada el ${data.rendicion_fecha}</span>
+      </div>`;
+  } else {
+    // Formulario rendición con escáner
+    html += `
+      <div style="padding:20px;border-top:1px solid var(--border)">
+        <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:14px">📋 Registrar Rendición</div>
+        <form method="POST" action="/movimientos/salidas/${salidaId}/rendir" id="rendicionForm">
+          <div style="background:#eef5ff;border-radius:8px;padding:12px;margin-bottom:14px">
+            <label class="form-label" style="color:var(--primary)">🔫 Escanear producto para ingresar cantidad rendida</label>
+            <input type="text" id="inputRendicion" class="form-input"
+              placeholder="Escanea código o escribe nombre..."
+              oninput="buscarRendicion(this.value, ${salidaId})"
+              autocomplete="off">
+            <div id="sugerenciasRendicion" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:4px;max-height:150px;overflow-y:auto;position:relative;z-index:9999"></div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
+            <thead style="background:#f8fafc">
+              <tr>
+                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:90px;text-align:center">Entregado</th>
+                <th style="padding:8px 14px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:130px;text-align:center">Cantidad Rendida</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+    data.items.forEach(item => {
+      html += `
+              <tr style="border-bottom:1px solid var(--border)" id="rend-row-${item.producto_id}">
+                <td style="padding:8px 14px">
+                  <strong>${item.nombre}</strong>
+                  <div style="font-size:11px;color:var(--text-muted)"><span class="text-codigo-rend">${item.codigo}</span> · ${item.unidad}</div>
+                </td>
+                <td style="padding:8px 14px;text-align:center"><span class="badge badge-blue">${item.entregado}</span></td>
+                <td style="padding:6px 14px;text-align:center">
+                  <input type="hidden" name="salida_item_id[]" value="${item.salida_item_id}">
+                  <input type="number" id="cant-rend-${item.producto_id}" name="cantidad_rendida[]"
+                    class="form-input" value="0" min="0" step="0.01"
+                    style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;width:100px">
+                </td>
+              </tr>`;
+    });
+
+    html += `
+            </tbody>
+          </table>
+          <div class="form-group" style="margin-top:12px">
+            <label class="form-label">Notas (opcional)</label>
+            <input type="text" name="notas" class="form-input" placeholder="Observaciones de la rendición...">
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px">
+            <button type="button" class="btn btn-outline" onclick="closeModal('detalleModal')">Cancelar</button>
+            <button type="submit" class="btn btn-primary">✅ Guardar Rendición</button>
+          </div>
+        </form>
+      </div>`;
+
+    // Activar escáner para rendición después de que el HTML se renderice
+    setTimeout(() => activarEscanerRendicion(salidaId, data.items), 100);
+  }
+
+  document.getElementById('detalleBody').innerHTML = html;
+  if (!data.tiene_rendicion) {
+    setTimeout(() => activarEscanerRendicion(salidaId, data.items), 150);
+  }
+}
+
+// ── BUSCADOR RENDICIÓN ────────────────────────────────
+function buscarRendicion(q, salidaId) {
+  const sug = document.getElementById('sugerenciasRendicion');
+  if (!sug) return;
+  q = q.trim();
+  if (q.length < 2) { sug.style.display = 'none'; return; }
+
+  const filas = document.querySelectorAll('.text-codigo-rend');
+  const resultados = [];
+  filas.forEach(el => {
+    const row = el.closest('tr');
+    const nombre = row.querySelector('strong').textContent;
+    const codigo = el.textContent;
+    const pid = row.id.replace('rend-row-', '');
+    if (nombre.toLowerCase().includes(q.toLowerCase()) || codigo.includes(q)) {
+      resultados.push({ pid, nombre, codigo });
+    }
+  });
+
+  if (resultados.length === 0) { sug.style.display = 'none'; return; }
+  sug.innerHTML = resultados.slice(0, 6).map(r => `
+    <div onclick="enfocarRendicion('${r.pid}')"
+      style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px"
+      onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+      <strong>${r.nombre}</strong>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${r.codigo}</span>
+    </div>`).join('');
+  sug.style.display = 'block';
+}
+
+function enfocarRendicion(pid) {
+  const inp = document.getElementById(`cant-rend-${pid}`);
+  if (inp) {
+    inp.focus(); inp.select();
+    inp.closest('tr').style.background = '#f0f7ff';
+    setTimeout(() => { inp.closest('tr').style.background = ''; }, 1000);
+  }
+  const sug = document.getElementById('sugerenciasRendicion');
+  if (sug) sug.style.display = 'none';
+  const inputRend = document.getElementById('inputRendicion');
+  if (inputRend) inputRend.value = '';
+}
+
+// ── ESCÁNER FÍSICO PARA RENDICIÓN ────────────────────
+function activarEscanerRendicion(salidaId, items) {
+  let bufferR = '', timerR = null;
+  document.addEventListener('keydown', function handlerR(e) {
+    if (!document.getElementById('detalleModal').classList.contains('open')) {
+      document.removeEventListener('keydown', handlerR);
+      return;
+    }
+    const activo = document.activeElement;
+    if (activo.id === 'inputRendicion') return;
+    if (activo.id && activo.id.startsWith('cant-rend-')) return;
+
+    if (e.key === 'Enter') {
+      const cod = bufferR.trim(); bufferR = ''; clearTimeout(timerR);
+      if (cod.length >= 6) {
+        const item = items.find(i => i.codigo === cod);
+        if (item) enfocarRendicion(item.producto_id);
+        else toastEsc(`⚠️ Código ${cod} no encontrado en esta entrega`);
+      }
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+      bufferR += e.key; clearTimeout(timerR);
+      timerR = setTimeout(() => { bufferR = ''; }, 150);
+    }
+  }, true);
+}
+
+// ════════════════════════════════════════════════════════
 // MODAL MANUAL
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 function filtrarManual(q) {
   q = q.toLowerCase();
   document.querySelectorAll('.prod-row-manual').forEach(row => {
@@ -257,7 +454,7 @@ function actualizarContadorManual() {
   const cnt = document.getElementById('contadorManual');
   cnt.style.display = sel > 0 ? 'block' : 'none';
   cnt.textContent = `${sel} producto(s) seleccionado(s)`;
-  document.getElementById('resumenManual').textContent = sel > 0 ? `${sel} productos seleccionados` : '';
+  document.getElementById('resumenManual').textContent = sel > 0 ? `${sel} productos` : '';
 }
 
 function marcarTodosManual() {
@@ -275,9 +472,9 @@ function desmarcarTodosManual() {
 }
 
 async function cargarFavoritosManual() {
-  const res  = await fetch('/favoritos/api');
+  const res = await fetch('/favoritos/api');
   const favs = await res.json();
-  if (favs.length === 0) { alert('No tienes favoritos. Ve a ⭐ Favoritos en el menú.'); return; }
+  if (favs.length === 0) { alert('No tienes favoritos configurados.'); return; }
   desmarcarTodosManual();
   favs.forEach(f => {
     const chk = document.querySelector(`.chk-manual[data-pid="${f.id}"]`);
@@ -297,43 +494,36 @@ function prepararManual() {
     const ip = document.createElement('input'); ip.type='hidden'; ip.name='producto_id[]'; ip.value=chk.dataset.pid; cont.appendChild(ip);
     const ic = document.createElement('input'); ic.type='hidden'; ic.name='cantidad[]'; ic.value=cant; cont.appendChild(ic);
   });
-  if (!ok) { alert('Ingresa cantidad válida para todos los productos.'); return false; }
+  if (!ok) { alert('Ingresa cantidad válida para todos los productos seleccionados.'); return false; }
   return true;
 }
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
 // MODAL ESCÁNER
-// ════════════════════════════════════════════════════════════════
-let productosEscaner = []; // lista de productos agregados {id, codigo, nombre, unidad, cantidad}
+// ════════════════════════════════════════════════════════
+let productosEscaner = [];
 
 function buscarProductoEscaner(q) {
   const sug = document.getElementById('sugerenciasEscaner');
   q = q.trim();
   if (q.length < 2) { sug.style.display = 'none'; return; }
-
   const resultados = PRODUCTOS.filter(p =>
-    p.nombre.toLowerCase().includes(q.toLowerCase()) ||
-    p.codigo.includes(q)
+    p.nombre.toLowerCase().includes(q.toLowerCase()) || p.codigo.includes(q)
   ).slice(0, 8);
-
   if (resultados.length === 0) { sug.style.display = 'none'; return; }
-
   sug.innerHTML = resultados.map(p => `
     <div onclick="agregarProductoEscaner(${p.id})"
       style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px"
       onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
       <strong>${p.nombre}</strong>
       <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${p.codigo} · Stock: ${p.stock}</span>
-    </div>
-  `).join('');
+    </div>`).join('');
   sug.style.display = 'block';
 }
 
 function agregarProductoEscaner(pid) {
   const prod = PRODUCTOS.find(p => p.id === pid);
   if (!prod) return;
-
-  // Si ya está en la lista, solo enfocar su cantidad
   const existente = productosEscaner.find(p => p.id === pid);
   if (existente) {
     document.getElementById(`cant-esc-${pid}`).focus();
@@ -342,7 +532,6 @@ function agregarProductoEscaner(pid) {
     toastEsc(`⚠️ ${prod.nombre} ya está en la lista`);
     return;
   }
-
   productosEscaner.push({ ...prod, cantidad: 1 });
   renderListaEscaner();
   document.getElementById('sugerenciasEscaner').style.display = 'none';
@@ -355,21 +544,18 @@ function agregarProductoEscaner(pid) {
 }
 
 function renderListaEscaner() {
-  const tbody  = document.getElementById('tbodyEscaner');
-  const tabla  = document.getElementById('tablaEscaner');
-  const vacia  = document.getElementById('listaEscanerVacia');
-  const cnt    = document.getElementById('contadorEscaner');
-
+  const tbody = document.getElementById('tbodyEscaner');
+  const tabla = document.getElementById('tablaEscaner');
+  const vacia = document.getElementById('listaEscanerVacia');
+  const cnt   = document.getElementById('contadorEscaner');
   if (productosEscaner.length === 0) {
     tabla.style.display = 'none'; vacia.style.display = 'block';
     cnt.textContent = '0 productos';
     document.getElementById('resumenEscaner').textContent = '';
     return;
   }
-
   tabla.style.display = ''; vacia.style.display = 'none';
   cnt.textContent = `${productosEscaner.length} producto(s)`;
-
   tbody.innerHTML = productosEscaner.map(p => `
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 14px">
@@ -385,11 +571,9 @@ function renderListaEscaner() {
       <td style="padding:6px 14px;text-align:center">
         <button type="button" class="btn-remove" onclick="quitarProductoEscaner(${p.id})">×</button>
       </td>
-    </tr>
-  `).join('');
-
+    </tr>`).join('');
   const total = productosEscaner.reduce((s, p) => s + p.cantidad, 0);
-  document.getElementById('resumenEscaner').textContent = `${productosEscaner.length} productos · ${total} unidades totales`;
+  document.getElementById('resumenEscaner').textContent = `${productosEscaner.length} productos · ${total} uds`;
 }
 
 function actualizarCantEscaner(pid, val) {
@@ -413,18 +597,12 @@ function prepararEscaner() {
   return true;
 }
 
-// ── ESCÁNER FÍSICO (Eyoyo) ────────────────────────────────────
+// ── ESCÁNER FÍSICO MODAL ESCÁNER ─────────────────────
 let bufferEsc = '', timerEsc = null;
-
 document.addEventListener('keydown', function(e) {
-  const modalAbierto = document.getElementById('salidaEscanerModal').classList.contains('open');
-  if (!modalAbierto) return;
-
-  // Si el foco está en el input de búsqueda, dejar que escriba normal
+  if (!document.getElementById('salidaEscanerModal').classList.contains('open')) return;
   if (document.activeElement.id === 'inputEscaner') return;
-  // Si el foco está en un campo de cantidad, dejar normal
   if (document.activeElement.id && document.activeElement.id.startsWith('cant-esc-')) return;
-
   if (e.key === 'Enter') {
     const cod = bufferEsc.trim(); bufferEsc = ''; clearTimeout(timerEsc);
     if (cod.length >= 6) {
@@ -438,11 +616,7 @@ document.addEventListener('keydown', function(e) {
   }
 }, true);
 
-// Limpiar lista al cerrar modal
-document.getElementById('salidaEscanerModal').addEventListener('click', function(e) {
-  if (e.target === this) { productosEscaner = []; renderListaEscaner(); }
-});
-
+// ── UTILS ─────────────────────────────────────────────
 function toastEsc(msg) {
   let t = document.getElementById('toastEscaner');
   if (!t) {
@@ -462,10 +636,12 @@ function openAnular(id) {
   openModal('anularModal');
 }
 
-// Cerrar sugerencias al hacer click fuera
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('#inputEscaner') && !e.target.closest('#sugerenciasEscaner')) {
+  if (!e.target.closest('#inputEscaner') && !e.target.closest('#sugerenciasEscaner'))
     document.getElementById('sugerenciasEscaner').style.display = 'none';
+  if (!e.target.closest('#inputRendicion') && !e.target.closest('#sugerenciasRendicion')) {
+    const sug = document.getElementById('sugerenciasRendicion');
+    if (sug) sug.style.display = 'none';
   }
 });
 </script>

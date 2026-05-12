@@ -220,3 +220,31 @@ class ProductoFavorito(db.Model):
     producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False, unique=True)
     creado_en   = db.Column(db.DateTime, default=datetime.utcnow)
     producto    = db.relationship('Producto')
+
+
+# ─── RENDICION POR SALIDA ─────────────────────────────────────────────────────
+class RendicionSalida(db.Model):
+    __tablename__ = 'rendiciones_salida'
+    id           = db.Column(db.Integer, primary_key=True)
+    salida_id    = db.Column(db.Integer, db.ForeignKey('salidas.id'), nullable=False, unique=True)
+    cuadrilla_id = db.Column(db.Integer, db.ForeignKey('cuadrillas.id'), nullable=False)
+    usuario_id   = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
+    notas        = db.Column(db.String(200))
+    creado_en    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    salida   = db.relationship('Salida', backref=db.backref('rendicion', uselist=False))
+    items    = db.relationship('RendicionSalidaItem', backref='rendicion', lazy=True)
+    usuario  = db.relationship('Usuario')
+    cuadrilla = db.relationship('Cuadrilla')
+
+
+class RendicionSalidaItem(db.Model):
+    __tablename__ = 'rendicion_salida_items'
+    id               = db.Column(db.Integer, primary_key=True)
+    rendicion_id     = db.Column(db.Integer, db.ForeignKey('rendiciones_salida.id'), nullable=False)
+    salida_item_id   = db.Column(db.Integer, db.ForeignKey('salida_items.id'), nullable=False)
+    producto_id      = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    cantidad_rendida = db.Column(db.Float, default=0)
+
+    producto    = db.relationship('Producto')
+    salida_item = db.relationship('SalidaItem')
