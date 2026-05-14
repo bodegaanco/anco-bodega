@@ -36,11 +36,11 @@ def nueva_salida():
     db.session.flush()
 
     for pid, cant in zip(producto_ids, cantidades):
-        if pid and cant and int(cant) > 0:
+        if pid and cant and float(cant) > 0:
             producto = Producto.query.get(pid)
             if not producto:
                 continue
-            cantidad = int(cant)
+            cantidad = float(cant)
 
             # Descontar de bodega
             producto.stock_bodega = max(0, producto.stock_bodega - cantidad)
@@ -112,8 +112,8 @@ def nueva_rendicion():
     db.session.flush()
 
     for pid, cant in zip(producto_ids, cantidades):
-        if pid and cant and int(cant) > 0:
-            cantidad = int(cant)
+        if pid and cant and float(cant) > 0:
+            cantidad = float(cant)
             # Descontar del stock de la cuadrilla
             sc = StockCuadrilla.query.filter_by(
                 cuadrilla_id=cuadrilla_id, producto_id=pid).first()
@@ -255,7 +255,7 @@ def editar_rendicion(id):
     for pid, cant in zip(productos_ids, cantidades):
         if not pid or not cant:
             continue
-        cant = int(cant)
+        cant = float(cant)
         item = RendicionItem(
             rendicion_id=rendicion.id,
             producto_id=int(pid),

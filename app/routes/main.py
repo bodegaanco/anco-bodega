@@ -52,3 +52,31 @@ def dashboard():
         ultimas_entradas   = ultimas_entradas,
         ultimas_salidas    = ultimas_salidas,
     )
+
+
+@main_bp.route('/run-migrate-float')
+@login_required
+def run_migrate_float():
+    from sqlalchemy import text
+    from app import db
+    resultados = []
+    queries = [
+        ("productos.stock_bodega", "ALTER TABLE productos ALTER COLUMN stock_bodega TYPE FLOAT USING stock_bodega::float"),
+        ("stock_cuadrilla.cantidad", "ALTER TABLE stock_cuadrilla ALTER COLUMN cantidad TYPE FLOAT USING cantidad::float"),
+        ("salida_items.cantidad", "ALTER TABLE salida_items ALTER COLUMN cantidad TYPE FLOAT USING cantidad::float"),
+        ("rendicion_items.cantidad_usada", "ALTER TABLE rendicion_items ALTER COLUMN cantidad_usada TYPE FLOAT USING cantidad_usada::float"),
+        ("inventario_items.cantidad_real", "ALTER TABLE inventario_items ALTER COLUMN cantidad_real TYPE FLOAT USING cantidad_real::float"),
+        ("inventario_items.diferencia", "ALTER TABLE inventario_items ALTER COLUMN diferencia TYPE FLOAT USING diferencia::float"),
+        ("inventario_items.stock_sistema", "ALTER TABLE inventario_items ALTER COLUMN stock_sistema TYPE FLOAT USING stock_sistema::float"),
+        ("inventario_items.stock_real", "ALTER TABLE inventario_items ALTER COLUMN stock_real TYPE FLOAT USING stock_real::float"),
+    ]
+    for nombre, sql in queries:
+        try:
+            db.session.execute(text(sql))
+            db.session.commit()
+            resultados.append(f"✅ {nombre}")
+        except Exception as e:
+            db.session.rollback()
+            resultados.append(f"⚠️ {nombre}: {str(e)[:80]}")
+
+    return "<h2>Migración Float</h2><pre>" + "\n".join(resultados) + "</pre><br><a href='/'>Volver al sistema</a>"
