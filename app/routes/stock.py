@@ -31,14 +31,14 @@ def entrada():
         productos_ids  = request.form.getlist('producto_id[]')
         cantidades     = request.form.getlist('cantidad[]')
         for pid, cant in zip(productos_ids, cantidades):
-            if pid and cant and int(cant) > 0:
+            if pid and cant and float(cant) > 0:
                 producto = Producto.query.get(pid)
                 if producto:
                     antes = producto.stock_bodega
-                    producto.stock_bodega += int(cant)
+                    producto.stock_bodega += float(cant)
                     entrada = Entrada(
                         producto_id   = producto.id,
-                        cantidad      = int(cant),
+                        cantidad      = float(cant),
                         stock_antes   = antes,
                         stock_despues = producto.stock_bodega
                     )
@@ -53,7 +53,7 @@ def entrada():
 @login_required
 def ajuste(id):
     producto    = Producto.query.get_or_404(id)
-    nuevo_stock = int(request.form.get('nuevo_stock', 0))
+    nuevo_stock = float(request.form.get('nuevo_stock', 0))
     producto.stock_bodega = nuevo_stock
     db.session.commit()
     flash(f'✅ Stock de {producto.descripcion} ajustado a {nuevo_stock}', 'success')

@@ -9,16 +9,19 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
 
-    # Filtro para mostrar numeros sin ceros innecesarios: 1.5 en vez de 1.0 o 1.50000
+    # Filtro para mostrar numeros: 1.5 como 1.5, 2.0 como 2, 1.500 como 1.5
     @app.template_filter('num')
     def num_filter(value):
         if value is None:
             return '0'
         try:
             f = float(value)
-            if f == int(f):
+            # Si es entero exacto, mostrar sin decimales
+            if f == int(f) and '.' not in str(value):
                 return str(int(f))
-            return f'{f:g}'
+            # Si tiene decimales reales, mostrarlos sin ceros extra
+            s = f'{f:.4f}'.rstrip('0').rstrip('.')
+            return s
         except:
             return str(value)
 

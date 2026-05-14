@@ -111,7 +111,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Stock Mínimo para Alerta</label>
-          <input type="number" name="stock_min" id="editar-min" class="form-input" min="0" placeholder="0">
+          <input type="number" name="stock_min" id="editar-min" class="form-input" min="0" step="0.01" placeholder="0">
           <div class="info-box">💡 El sistema mostrará alerta ⚠️ cuando el stock llegue a este número.</div>
         </div>
       </div>
@@ -143,7 +143,7 @@
           </div>
           <div class="form-group">
             <label class="form-label">Nuevo stock real</label>
-            <input type="number" name="nuevo_stock" class="form-input" placeholder="Ingresa el stock real" min="0" required>
+            <input type="number" name="nuevo_stock" class="form-input" placeholder="Ingresa el stock real" min="0" step="0.01" required>
           </div>
         </div>
       </div>

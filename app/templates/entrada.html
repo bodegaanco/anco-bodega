@@ -18,7 +18,7 @@
             <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }}) · Stock: {{ p.stock_bodega|num }}</option>
             {% endfor %}
           </select>
-          <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1" required>
+          <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01" required>
           <span></span>
         </div>
       </div>
@@ -46,7 +46,7 @@
       <select class="form-select" name="producto_id[]">
         <option value="">Seleccionar producto...</option>${productosOpts}
       </select>
-      <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="1">
+      <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01">
       <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
     `;
     c.appendChild(d);
