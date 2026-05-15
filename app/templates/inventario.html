@@ -5,7 +5,8 @@
 {% block content %}
 <div class="toolbar">
   <span style="color:var(--text-muted);font-size:13px">Ajuste del stock real versus sistema</span>
-  <button onclick="openModal('inventarioModal')" class="btn btn-primary" style="margin-left:auto">+ Nuevo Inventario</button>
+  <button onclick="openModal('excelModal')" class="btn btn-outline" style="margin-left:auto">📊 Cargar Excel</button>
+  <button onclick="openModal('inventarioModal')" class="btn btn-primary">+ Inventario Manual</button>
 </div>
 
 <!-- HISTORIAL -->
@@ -138,6 +139,52 @@
     </form>
   </div>
 </div>
+
+<!-- MODAL CARGAR EXCEL -->
+<div class="modal-overlay" id="excelModal">
+  <div class="modal">
+    <div class="modal-header" style="background:#2a9d8f">
+      <div class="modal-title">📊 Cargar Inventario desde Excel</div>
+      <button class="modal-close" onclick="closeModal('excelModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('inventario.cargar_excel') }}" enctype="multipart/form-data">
+      <div class="modal-body">
+        <div style="background:#e8f5f3;border-radius:6px;padding:12px;font-size:13px;color:#2a9d8f;font-weight:600;margin-bottom:16px">
+          📋 Formato esperado: <strong>Columna A</strong> = nombre, <strong>Columna B</strong> = código, <strong>Columna C</strong> = cantidad
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Tipo de inventario</label>
+            <select class="form-select" name="tipo" id="excel-tipo" onchange="toggleExcelCuadrilla(this.value)">
+              <option value="bodega">🏭 Bodega Central</option>
+              <option value="cuadrilla">🚚 Cuadrilla</option>
+            </select>
+          </div>
+          <div class="form-group" id="excel-cuadrilla-field" style="display:none;margin-bottom:0">
+            <label class="form-label">Cuadrilla</label>
+            <select class="form-select" name="cuadrilla_id">
+              <option value="">Seleccionar...</option>
+              {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label class="form-label">Archivo Excel (.xlsx)</label>
+          <input type="file" name="archivo_excel" class="form-input" accept=".xlsx,.xls" required
+            style="padding:8px;cursor:pointer">
+        </div>
+        <div class="info-box" style="margin-top:10px">
+          💡 El sistema buscará cada código en el catálogo de productos y ajustará el stock automáticamente. Los códigos no encontrados se informarán al final.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('excelModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f">📊 Aplicar Inventario</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -363,6 +410,10 @@ document.addEventListener('keydown', function(e) {
     timerInv = setTimeout(() => { bufferInv = ''; }, 150);
   }
 }, true);
+
+function toggleExcelCuadrilla(val) {
+  document.getElementById('excel-cuadrilla-field').style.display = val === 'cuadrilla' ? 'block' : 'none';
+}
 
 function toastInv(msg) {
   let t = document.getElementById('toastInv');
