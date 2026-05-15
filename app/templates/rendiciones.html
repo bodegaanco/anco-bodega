@@ -47,7 +47,7 @@
 {% endwith %}
 
 {% set n_pendientes  = rendiciones|selectattr('estado','equalto','pendiente')|rejectattr('anulada')|list|length %}
-{% set n_diferencias = rendiciones|selectattr('estado','equalto','diferencia')|list|length %}
+{% set n_diferencias = rendiciones|selectattr('estado','equalto','diferencia')|rejectattr('anulada')|list|length %}
 {% if n_pendientes > 0 or n_diferencias > 0 %}
 <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
   {% if n_pendientes > 0 %}
@@ -107,13 +107,14 @@
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             {% if not r.anulada %}
               {% if r.estado == 'pendiente' %}
-                <button onclick="openRevisar({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-primary btn-sm">Revisar</button>
+                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-primary btn-sm">🔍 Revisar</button>
                 <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
               {% elif r.estado == 'diferencia' %}
-                <button onclick="openEditar({{ r.id }}, '{{ r.numero_ot }}', {{ r.cuadrilla_id }})" class="btn btn-warning btn-sm">✏️ Editar</button>
-                <button onclick="openRevisar({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-outline btn-sm">Re-revisar</button>
+                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-warning btn-sm">🔍 Re-revisar</button>
+                <button onclick="openEditar({{ r.id }}, '{{ r.numero_ot }}', {{ r.cuadrilla_id }})" class="btn btn-outline btn-sm">✏️ Editar</button>
                 <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
               {% elif r.estado == 'ok' %}
+                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-outline btn-sm">Ver revisión</button>
                 <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
               {% endif %}
             {% endif %}
@@ -223,33 +224,72 @@
   </div>
 </div>
 
-<!-- MODAL REVISAR OT -->
-<div class="modal-overlay" id="revisarModal">
-  <div class="modal">
-    <div class="modal-header" style="background:#1a2b3c">
+<!-- MODAL REVISAR COMPLETO -->
+<div class="modal-overlay" id="revisarCompletoModal">
+  <div class="modal" style="width:720px;max-width:98vw">
+    <div class="modal-header" id="revisarHeader" style="background:#1a2b3c">
       <div class="modal-title">🔍 Revisar OT — <span id="revisar-ot-num"></span></div>
-      <button class="modal-close" onclick="closeModal('revisarModal')">✕</button>
+      <button class="modal-close" onclick="closeModal('revisarCompletoModal')">✕</button>
     </div>
-    <div class="modal-body">
-      <p style="font-size:14px;color:var(--text);margin-bottom:20px">¿Los materiales de esta OT <strong>coinciden</strong> con lo que aparece en el otro sistema?</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <form method="POST" id="revisarOKForm" action="">
-          <input type="hidden" name="resultado" value="ok">
-          <button type="submit" class="btn btn-primary" style="width:100%;padding:16px;font-size:15px;background:#2a9d8f;border-color:#2a9d8f">
-            ✅ Sí, está OK<br><span style="font-size:11px;font-weight:400;opacity:0.85">Coincide con el sistema</span>
-          </button>
-        </form>
-        <form method="POST" id="revisarDifForm" action="">
-          <input type="hidden" name="resultado" value="diferencia">
-          <button type="submit" class="btn btn-warning" style="width:100%;padding:16px;font-size:15px">
-            ⚠️ Tiene diferencias<br><span style="font-size:11px;font-weight:400;opacity:0.85">Necesita corrección</span>
-          </button>
-        </form>
+    <form method="POST" id="revisarCompletoForm" action="">
+      <div class="modal-body" style="padding:0">
+
+        <!-- INFO OT -->
+        <div id="revisar-info" style="padding:12px 20px;background:#f8fafc;border-bottom:1px solid var(--border);font-size:13px"></div>
+
+        <!-- TABLA COMPARACION -->
+        <div style="padding:12px 20px;background:#eef5ff;border-bottom:1px solid var(--border);font-size:12px;color:var(--primary);font-weight:600">
+          🔍 Ingresa las cantidades del otro sistema — no modifica ningún stock
+        </div>
+        <div style="overflow-x:auto;max-height:300px;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;background:#f8fafc;border-bottom:2px solid var(--border)">
+              <tr>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--primary);font-weight:700;text-align:center;width:110px">ANCO</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#2a9d8f;font-weight:700;text-align:center;width:130px">Otro Sistema</th>
+                <th style="padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:center;width:90px">Diferencia</th>
+              </tr>
+            </thead>
+            <tbody id="revisar-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- NOTAS -->
+        <div style="padding:14px 20px;border-top:1px solid var(--border)">
+          <label class="form-label">📝 Notas de revisión (opcional)</label>
+          <textarea name="notas_revision" id="revisar-notas" class="form-input" rows="2"
+            placeholder="Ej: Materiales verificados con OT del sistema SAP, diferencia en terminal por error de digitación..."
+            style="resize:vertical"></textarea>
+        </div>
+
+        <!-- RESULTADO -->
+        <div style="padding:14px 20px;background:#f8fafc;border-top:1px solid var(--border)">
+          <label class="form-label">¿Cómo queda esta OT?</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:10px;background:#e8f5f3;border:2px solid #2a9d8f;border-radius:8px;padding:12px;cursor:pointer">
+              <input type="radio" name="resultado" value="ok" style="width:16px;height:16px;accent-color:#2a9d8f">
+              <div>
+                <div style="font-weight:700;color:#2a9d8f;font-size:13px">✅ Revisada OK</div>
+                <div style="font-size:11px;color:var(--text-muted)">Coincide con el otro sistema</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;background:#fff8e1;border:2px solid var(--warning);border-radius:8px;padding:12px;cursor:pointer">
+              <input type="radio" name="resultado" value="diferencia" style="width:16px;height:16px;accent-color:#f4a261">
+              <div>
+                <div style="font-weight:700;color:#c67c00;font-size:13px">⚠️ Tiene diferencias</div>
+                <div style="font-size:11px;color:var(--text-muted)">No coincide, requiere atención</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
       </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('revisarModal')">Cancelar</button>
-    </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('revisarCompletoModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" onclick="return validarRevisar()">Guardar Revisión</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -410,7 +450,15 @@
       estado: '{{ r.estado }}',
       anulada: {{ 'true' if r.anulada else 'false' }},
       revisada_por: '{{ r.revisada_por or "" }}',
-      items: [{% for i in r.items %}{ id: {{ i.producto_id }}, desc: '{{ i.producto.descripcion|replace("'","\\'")|truncate(40) }}', cant: {{ i.cantidad_usada }}, unidad: '{{ i.producto.unidad }}', cod: '{{ i.producto.codigo }}' }{{ ',' if not loop.last }}{% endfor %}]
+      notas: '{{ (r.notas_revision or "")|replace("'", "\\'") }}',
+      items: [{% for i in r.items %}{
+        id: {{ i.producto_id }},
+        desc: '{{ i.producto.descripcion|replace("'","\\'")|truncate(40) }}',
+        cant: {{ i.cantidad_usada }},
+        unidad: '{{ i.producto.unidad }}',
+        cod: '{{ i.producto.codigo }}',
+        comp_otro: {{ r.comparacion|selectattr('producto_id','equalto',i.producto_id)|map(attribute='cantidad_otro')|first|default(0) }}
+      }{{ ',' if not loop.last }}{% endfor %}]
     }{{ ',' if not loop.last }}
     {% endfor %}
   };
@@ -490,12 +538,88 @@
     }
   }
 
-  function openRevisar(id, ot) {
+  function openRevisarCompleto(id, ot) {
+    const d = otData[id];
     document.getElementById('revisar-ot-num').textContent = ot;
-    const url = `/movimientos/rendiciones/revisar/${id}`;
-    document.getElementById('revisarOKForm').action  = url;
-    document.getElementById('revisarDifForm').action = url;
-    openModal('revisarModal');
+    document.getElementById('revisarCompletoForm').action = `/movimientos/rendiciones/revisar_completo/${id}`;
+    document.getElementById('revisarHeader').style.background =
+      d.estado === 'ok' ? '#2a9d8f' : d.estado === 'diferencia' ? '#e07020' : '#1a2b3c';
+
+    // Info OT
+    document.getElementById('revisar-info').innerHTML = `
+      <span>📅 <strong>${d.fecha}</strong></span>
+      <span style="margin-left:16px">🚚 <strong>${d.cuadrilla}</strong></span>
+      ${d.revisada_por ? `<span style="margin-left:16px;color:var(--text-muted)">Revisado por: ${d.revisada_por}</span>` : ''}`;
+
+    // Notas previas
+    document.getElementById('revisar-notas').value = d.notas || '';
+
+    // Radio previo
+    if (d.estado === 'ok') document.querySelector('input[name="resultado"][value="ok"]').checked = true;
+    else if (d.estado === 'diferencia') document.querySelector('input[name="resultado"][value="diferencia"]').checked = true;
+    else { document.querySelector('input[name="resultado"][value="ok"]').checked = false;
+           document.querySelector('input[name="resultado"][value="diferencia"]').checked = false; }
+
+    // Tabla comparacion
+    const tbody = document.getElementById('revisar-tbody');
+    tbody.innerHTML = d.items.map((i, idx) => `
+      <tr id="rrev-${idx}" style="border-bottom:1px solid var(--border);${idx%2===0?'':'background:#fafcff'}">
+        <td style="padding:10px 16px">
+          <div style="font-size:13px;font-weight:600">${i.desc}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-family:monospace">${i.cod} · ${i.unidad}</div>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <span style="font-size:20px;font-weight:800;color:var(--primary)">${i.cant}</span>
+          <div style="font-size:10px;color:var(--text-muted)">${i.unidad}</div>
+          <input type="hidden" name="comp_producto_id[]" value="${i.id}">
+        </td>
+        <td style="padding:8px 16px;text-align:center">
+          <input type="number" id="otro-rev-${idx}" name="comp_cantidad_otro[]"
+            value="${i.comp_otro || ''}" min="0" step="0.01" placeholder="—"
+            style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:90px;border:2px solid var(--border);border-radius:6px"
+            oninput="calcRevDif(${idx}, ${i.cant}, this.value)"
+            onfocus="this.select()">
+        </td>
+        <td style="padding:10px 16px;text-align:center" id="drev-${idx}">
+          <span style="color:var(--text-muted)">—</span>
+        </td>
+      </tr>`).join('');
+
+    // Recalcular diferencias existentes
+    d.items.forEach((i, idx) => {
+      if (i.comp_otro) calcRevDif(idx, i.cant, i.comp_otro);
+    });
+
+    openModal('revisarCompletoModal');
+  }
+
+  function calcRevDif(idx, nuestro, otroVal) {
+    const difEl = document.getElementById(`drev-${idx}`);
+    const row   = document.getElementById(`rrev-${idx}`);
+    if (!difEl) return;
+    if (otroVal === '' || otroVal === null) {
+      difEl.innerHTML = '<span style="color:var(--text-muted)">—</span>';
+      row.style.background = idx%2===0 ? '' : '#fafcff';
+      return;
+    }
+    const otro = parseFloat(otroVal);
+    const dif  = Math.round((nuestro - otro) * 1000) / 1000;
+    if (dif === 0) {
+      difEl.innerHTML = '<span style="font-size:16px;font-weight:800;color:var(--success)">✓ OK</span>';
+      row.style.background = '#f0fdf8';
+    } else if (dif > 0) {
+      difEl.innerHTML = `<span style="font-size:16px;font-weight:800;color:#c67c00">▲ +${dif}</span>`;
+      row.style.background = '#fff8e1';
+    } else {
+      difEl.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--danger)">▼ ${dif}</span>`;
+      row.style.background = '#ffeaea';
+    }
+  }
+
+  function validarRevisar() {
+    const resultado = document.querySelector('input[name="resultado"]:checked');
+    if (!resultado) { alert('Selecciona si la OT está OK o tiene diferencias.'); return false; }
+    return true;
   }
 
   const optsEdit = `{% for p in productos_select | default([]) %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }}</option>{% endfor %}`;

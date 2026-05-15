@@ -340,3 +340,52 @@ def rendir_salida(id):
     db.session.commit()
     flash(f'✅ Rendición registrada para la entrega #{salida.id}', 'success')
     return redirect(url_for('movimientos.salidas'))
+
+
+# ── REVISAR OT CON COMPARACION ────────────────────────────────────────────────
+@movimientos_bp.route('/rendiciones/revisar_completo/<int:id>', methods=['POST'])
+@login_required
+def revisar_completo(id):
+    from app.models import ComparacionOTItem
+    rendicion = Rendicion.query.get_or_404(id)
+    if rendicion.anulada:
+        return redirect(url_for('movimientos.rendiciones'))
+
+    resultado      = request.form.get('resultado')
+    notas_revision = request.form.get('notas_revision', '')
+    producto_ids   = request.form.getlist('comp_producto_id[]')
+    cantidades_otro = request.form.getlist('comp_cantidad_otro[]')
+
+    # Guardar revision
+    rendicion.estado        = resultado
+    rendicion.revisada_por  = current_user.nombre
+    rendicion.notas_revision = notas_revision
+
+    # Borrar comparacion anterior si existe
+    ComparacionOTItem.query.filter_by(rendicion_id=id).delete()
+
+    # Guardar comparacion
+    for pid, cant_otro in zip(producto_ids, cantidades_otro):
+        if not pid:
+            continue
+        cant_otro = float(cant_otro) if cant_otro else 0
+        item_ot = next((i for i in rendicion.items if str(i.producto_id) == str(pid)), None)
+        if not item_ot:
+            continue
+        cant_anco = item_ot.cantidad_usada
+        dif = cant_anco - cant_otro
+        comp = ComparacionOTItem(
+            rendicion_id=id,
+            producto_id=int(pid),
+            cantidad_anco=cant_anco,
+            cantidad_otro=cant_otro,
+            diferencia=dif
+        )
+        db.session.add(comp)
+
+    db.session.commit()
+    if resultado == 'ok':
+        flash(f'✅ OT {rendicion.numero_ot} confirmada OK', 'success')
+    else:
+        flash(f'⚠️ OT {rendicion.numero_ot} marcada con diferencias', 'warning')
+    return redirect(url_for('movimientos.rendiciones'))

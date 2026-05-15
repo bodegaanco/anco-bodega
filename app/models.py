@@ -140,8 +140,10 @@ class Rendicion(db.Model):
     items        = db.relationship('RendicionItem', backref='rendicion', lazy=True)
     anulada      = db.Column(db.Boolean, default=False)
     motivo_anulacion = db.Column(db.String(200))
-    estado           = db.Column(db.String(20), default='pendiente')  # pendiente / ok / diferencia
+    estado           = db.Column(db.String(20), default='pendiente')
     revisada_por     = db.Column(db.String(100))
+    notas_revision   = db.Column(db.String(500))
+    comparacion      = db.relationship('ComparacionOTItem', backref='rendicion', lazy=True, foreign_keys='ComparacionOTItem.rendicion_id')
 
 
 class RendicionItem(db.Model):
@@ -248,3 +250,14 @@ class RendicionSalidaItem(db.Model):
 
     producto    = db.relationship('Producto')
     salida_item = db.relationship('SalidaItem')
+
+
+class ComparacionOTItem(db.Model):
+    __tablename__ = 'comparacion_ot_items'
+    id              = db.Column(db.Integer, primary_key=True)
+    rendicion_id    = db.Column(db.Integer, db.ForeignKey('rendiciones.id'), nullable=False)
+    producto_id     = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    cantidad_anco   = db.Column(db.Float, nullable=False)
+    cantidad_otro   = db.Column(db.Float, default=0)
+    diferencia      = db.Column(db.Float, default=0)
+    producto        = db.relationship('Producto')
