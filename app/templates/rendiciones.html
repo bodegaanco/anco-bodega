@@ -216,7 +216,7 @@
 
 <!-- MODAL VER OT -->
 <div class="modal-overlay" id="verOTModal">
-  <div class="modal">
+  <div class="modal" style="width:680px;max-width:98vw">
     <div class="modal-header"><div class="modal-title" id="ver-ot-title">Detalle OT</div><button class="modal-close" onclick="closeModal('verOTModal')">✕</button></div>
     <div class="modal-body" id="ver-ot-body"></div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('verOTModal')">Cerrar</button></div>
@@ -422,15 +422,72 @@
     if (d.anulada)                   badge = `<div style="background:#ffeaea;border-radius:6px;padding:10px;color:#e63946;font-weight:600;margin-bottom:12px">✕ OT Anulada</div>`;
     else if (d.estado=='ok')         badge = `<div style="background:#e8f5f3;border-radius:6px;padding:10px;color:#2a9d8f;font-weight:600;margin-bottom:12px">✅ Revisada OK por ${d.revisada_por}</div>`;
     else if (d.estado=='diferencia') badge = `<div style="background:#fff8e1;border-radius:6px;padding:10px;color:#c67c00;font-weight:600;margin-bottom:12px">⚠️ Con diferencias — por ${d.revisada_por}</div>`;
-    let rows = d.items.map(i => `<tr><td>${i.desc}</td><td><strong>${i.cant} ${i.unidad}</strong></td></tr>`).join('');
+
+    let rows = d.items.map((i,idx) => `
+      <tr id="crow-${id}-${idx}" style="border-bottom:1px solid var(--border);${idx%2===0?'':'background:#fafcff'}">
+        <td style="padding:10px 14px">
+          <div style="font-size:13px;font-weight:600">${i.desc}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-family:monospace">${i.cod} · ${i.unidad}</div>
+        </td>
+        <td style="padding:10px 14px;text-align:center">
+          <span style="font-size:20px;font-weight:800;color:var(--primary)">${i.cant}</span>
+          <div style="font-size:10px;color:var(--text-muted)">${i.unidad}</div>
+        </td>
+        <td style="padding:8px 14px;text-align:center">
+          <input type="number" min="0" step="0.01" placeholder="—"
+            style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:90px;border:2px solid var(--border);border-radius:6px"
+            oninput="calcDifOT('${id}',${idx},${i.cant},this.value)"
+            onfocus="this.select()">
+        </td>
+        <td style="padding:10px 14px;text-align:center" id="dif-${id}-${idx}">
+          <span style="color:var(--text-muted)">—</span>
+        </td>
+      </tr>`).join('');
+
     document.getElementById('ver-ot-body').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
         <div style="background:#f8fafc;border-radius:6px;padding:12px"><div class="form-label">N° OT</div><strong>${d.ot}</strong></div>
         <div style="background:#f8fafc;border-radius:6px;padding:12px"><div class="form-label">Fecha</div><strong>${d.fecha}</strong></div>
       </div>
       ${badge}
-      <table class="tbl"><thead><tr><th>Producto</th><th>Cantidad usada</th></tr></thead><tbody>${rows}</tbody></table>`;
+      <div style="background:#eef5ff;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--primary)">
+        🔍 Ingresa las cantidades del <strong>otro sistema</strong> para comparar — no modifica ningún stock
+      </div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <thead style="background:#f8fafc">
+          <tr>
+            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--primary);font-weight:700;text-align:center;width:110px">Nuestro</th>
+            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#2a9d8f;font-weight:700;text-align:center;width:130px">Otro sistema</th>
+            <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:center;width:90px">Diferencia</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
     openModal('verOTModal');
+  }
+
+  function calcDifOT(otId, idx, nuestro, otroVal) {
+    const difEl = document.getElementById(`dif-${otId}-${idx}`);
+    const row   = document.getElementById(`crow-${otId}-${idx}`);
+    if (!difEl) return;
+    if (otroVal === '') {
+      difEl.innerHTML = '<span style="color:var(--text-muted)">—</span>';
+      row.style.background = idx%2===0 ? '' : '#fafcff';
+      return;
+    }
+    const otro = parseFloat(otroVal);
+    const dif  = Math.round((nuestro - otro) * 1000) / 1000;
+    if (dif === 0) {
+      difEl.innerHTML = '<span style="font-size:16px;font-weight:800;color:var(--success)">✓ OK</span>';
+      row.style.background = '#f0fdf8';
+    } else if (dif > 0) {
+      difEl.innerHTML = `<span style="font-size:16px;font-weight:800;color:#c67c00">▲ +${dif}</span>`;
+      row.style.background = '#fff8e1';
+    } else {
+      difEl.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--danger)">▼ ${dif}</span>`;
+      row.style.background = '#ffeaea';
+    }
   }
 
   function openRevisar(id, ot) {

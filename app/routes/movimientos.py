@@ -114,12 +114,7 @@ def nueva_rendicion():
     for pid, cant in zip(producto_ids, cantidades):
         if pid and cant and float(cant) > 0:
             cantidad = float(cant)
-            # Descontar del stock de la cuadrilla
-            sc = StockCuadrilla.query.filter_by(
-                cuadrilla_id=cuadrilla_id, producto_id=pid).first()
-            if sc:
-                sc.cantidad = max(0, sc.cantidad - cantidad)
-
+            # NO tocar stock — OT es solo para revision y comparacion
             item = RendicionItem(
                 rendicion_id=rendicion.id,
                 producto_id=pid,
@@ -191,25 +186,11 @@ def anular_rendicion(id):
         return redirect(url_for('movimientos.rendiciones'))
 
     # Revertir stock — devolver materiales a la cuadrilla
-    for item in rendicion.items:
-        sc = StockCuadrilla.query.filter_by(
-            cuadrilla_id=rendicion.cuadrilla_id,
-            producto_id=item.producto_id
-        ).first()
-        if sc:
-            sc.cantidad += item.cantidad_usada
-        else:
-            sc = StockCuadrilla(
-                cuadrilla_id=rendicion.cuadrilla_id,
-                producto_id=item.producto_id,
-                cantidad=item.cantidad_usada
-            )
-            db.session.add(sc)
-
+    # NO revertir stock — OT nunca tocó el stock
     rendicion.anulada          = True
     rendicion.motivo_anulacion = motivo
     db.session.commit()
-    flash(f'✅ Rendición OT {rendicion.numero_ot} anulada. Stock revertido.', 'success')
+    flash(f'✅ OT {rendicion.numero_ot} anulada.', 'success')
     return redirect(url_for('movimientos.rendiciones'))
 
 
@@ -353,14 +334,8 @@ def rendir_salida(id):
             cantidad_rendida=cant
         )
         db.session.add(ri)
-
-        # Descontar del stock cuadrilla
-        sc = StockCuadrilla.query.filter_by(
-            cuadrilla_id=salida.cuadrilla_id,
-            producto_id=item.producto_id
-        ).first()
-        if sc:
-            sc.cantidad = max(0, sc.cantidad - cant)
+        # NO tocar stock cuadrilla — la rendicion es solo informativa
+        # El stock ya fue sumado al hacer la salida
 
     db.session.commit()
     flash(f'✅ Rendición registrada para la entrega #{salida.id}', 'success')
