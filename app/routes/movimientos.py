@@ -17,13 +17,16 @@ def salidas():
     salidas_list    = q.order_by(Salida.creado_en.desc()).all()
     cuadrillas      = Cuadrilla.query.filter_by(activa=True).all()
     productos_select= Producto.query.filter_by(activo=True).order_by(Producto.descripcion).all()
-    return render_template('salidas.html', salidas=salidas_list, cuadrillas=cuadrillas, productos_select=productos_select)
+    from datetime import datetime as dt
+    return render_template('salidas.html', salidas=salidas_list, cuadrillas=cuadrillas, productos_select=productos_select, now=dt.now())
 
 @movimientos_bp.route('/salidas/nueva', methods=['POST'])
 @login_required
 def nueva_salida():
     cuadrilla_id  = request.form.get('cuadrilla_id')
     notas         = request.form.get('notas', '')
+    fecha_entrega = request.form.get('fecha_entrega', '')
+    hora_entrega  = request.form.get('hora_entrega', '00:00')
     producto_ids  = request.form.getlist('producto_id[]')
     cantidades    = request.form.getlist('cantidad[]')
 
@@ -31,12 +34,21 @@ def nueva_salida():
         flash('Debes seleccionar una cuadrilla', 'error')
         return redirect(url_for('movimientos.salidas'))
 
-    salida = Salida(cuadrilla_id=cuadrilla_id, notas=notas, usuario_id=current_user.id)
+    from datetime import datetime as dt
+    if fecha_entrega:
+        try:
+            fecha_dt = dt.strptime(f"{fecha_entrega} {hora_entrega}", "%Y-%m-%d %H:%M")
+        except:
+            fecha_dt = dt.utcnow()
+    else:
+        fecha_dt = dt.utcnow()
+
+    salida = Salida(cuadrilla_id=cuadrilla_id, notas=notas, usuario_id=current_user.id, creado_en=fecha_dt)
     db.session.add(salida)
     db.session.flush()
 
     for pid, cant in zip(producto_ids, cantidades):
-        if pid and cant and float(cant) > 0:
+        if pid and cant is not None and cant != "" and float(cant) >= 0:
             producto = Producto.query.get(pid)
             if not producto:
                 continue
@@ -112,7 +124,7 @@ def nueva_rendicion():
     db.session.flush()
 
     for pid, cant in zip(producto_ids, cantidades):
-        if pid and cant and float(cant) > 0:
+        if pid and cant is not None and cant != "" and float(cant) >= 0:
             cantidad = float(cant)
             # NO tocar stock — OT es solo para revision y comparacion
             item = RendicionItem(

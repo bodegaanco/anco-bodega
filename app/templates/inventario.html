@@ -1,53 +1,99 @@
 {% extends 'base.html' %}
 {% block title %}Inventarios — ANCO BODEGA{% endblock %}
-{% block page_title %}Inventarios y Reajustes{% endblock %}
+{% block page_title %}Inventarios{% endblock %}
 
 {% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
 <div class="toolbar">
-  <span style="color:var(--text-muted);font-size:13px">Ajuste del stock real versus sistema</span>
-  <button onclick="openModal('excelModal')" class="btn btn-outline" style="margin-left:auto">📊 Cargar Excel</button>
-  <button onclick="openModal('inventarioModal')" class="btn btn-primary">+ Inventario Manual</button>
+  <!-- FILTROS -->
+  <form method="GET" style="display:flex;gap:10px;align-items:center;flex:1;flex-wrap:wrap">
+    <select name="cuadrilla_id" class="form-select" style="max-width:200px" onchange="this.form.submit()">
+      <option value="">Todos los inventarios</option>
+      <option value="bodega" {{ 'selected' if tipo_filtro == 'bodega' }}>🏭 Solo Bodega</option>
+      {% for c in cuadrillas %}
+      <option value="{{ c.id }}" {{ 'selected' if cuadrilla_filtro|string == c.id|string }}>🚚 {{ c.nombre }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <button onclick="openModal('excelModal')" class="btn btn-outline">📊 Cargar Excel</button>
+  <button onclick="openModal('inventarioModal')" class="btn btn-primary">+ Nuevo Inventario</button>
 </div>
 
 <!-- HISTORIAL -->
 <div class="card">
-  <div class="card-header"><div class="card-title">📋 Historial de Inventarios</div></div>
+  <div class="card-header">
+    <div class="card-title">📋 Historial de Inventarios</div>
+    <span style="font-size:11px;color:var(--text-muted)">{{ inventarios|length }} registro(s)</span>
+  </div>
   <table class="tbl">
-    <thead><tr><th>Fecha</th><th>Tipo</th><th>Productos</th><th>Diferencias</th><th>Registrado por</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo / Cuadrilla</th>
+        <th>Productos contados</th>
+        <th>Con diferencias</th>
+        <th>Registrado por</th>
+        <th>Detalle</th>
+      </tr>
+    </thead>
     <tbody>
       {% for inv in inventarios %}
       <tr>
-        <td style="color:var(--text-muted)">{{ inv.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+        <td style="color:var(--text-muted);white-space:nowrap">
+          <strong>{{ inv.creado_en.strftime('%d %b %Y') }}</strong>
+          <div style="font-size:11px">{{ inv.creado_en.strftime('%H:%M') }}</div>
+        </td>
         <td>
           {% if inv.tipo == 'bodega' %}
-            <span class="badge badge-warning">🏭 Bodega</span>
+            <span class="badge badge-warning">🏭 Bodega Central</span>
           {% else %}
-            <span class="badge badge-blue">🚚 {{ inv.cuadrilla.nombre if inv.cuadrilla else 'Cuadrilla' }}</span>
+            <span class="badge badge-blue">🚚 {{ inv.cuadrilla.nombre if inv.cuadrilla else '—' }}</span>
           {% endif %}
         </td>
-        <td>{{ inv.items|length }} producto(s)</td>
+        <td><span class="badge badge-gray">{{ inv.items|length }} productos</span></td>
         <td>
           {% set difs = inv.items|selectattr('diferencia','ne',0)|list %}
           {% if difs %}
-            {% for item in difs %}
-              <span class="badge {{ 'badge-danger' if item.diferencia < 0 else 'badge-ok' }}" style="margin:1px">
-                {{ item.producto.descripcion|truncate(18) }}: {{ '+' if item.diferencia > 0 }}{{ item.diferencia|num }}
-              </span>
-            {% endfor %}
+            <span class="badge badge-danger">⚠️ {{ difs|length }} diferencias</span>
           {% else %}
-            <span class="badge badge-ok">Sin diferencias</span>
+            <span class="badge badge-ok">✓ Sin diferencias</span>
           {% endif %}
         </td>
-        <td style="color:var(--text-muted)">{{ inv.usuario.nombre if inv.usuario else '—' }}</td>
+        <td style="color:var(--text-muted);font-size:12px">{{ inv.usuario.nombre if inv.usuario else '—' }}</td>
+        <td>
+          <button onclick="verDetalle({{ inv.id }})" class="btn btn-outline btn-sm">Ver detalle</button>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Sin inventarios registrados aún</td></tr>
+      <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Sin inventarios registrados aún</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
-<!-- MODAL INVENTARIO -->
+<!-- MODAL VER DETALLE -->
+<div class="modal-overlay" id="detalleInvModal">
+  <div class="modal" style="width:700px;max-width:98vw">
+    <div class="modal-header" id="detalleInvHeader">
+      <div class="modal-title" id="detalleInvTitulo">Detalle Inventario</div>
+      <button class="modal-close" onclick="closeModal('detalleInvModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0" id="detalleInvBody">
+      <div style="padding:40px;text-align:center;color:var(--text-muted)">Cargando...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('detalleInvModal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO INVENTARIO MANUAL -->
 <div class="modal-overlay" id="inventarioModal">
   <div class="modal" style="width:750px;max-width:98vw">
     <div class="modal-header" id="invHeader">
@@ -57,35 +103,39 @@
     <form method="POST" action="{{ url_for('inventario.nuevo') }}" id="invForm">
       <div class="modal-body" style="padding:0">
 
-        <!-- TIPO + CUADRILLA -->
+        <!-- CONFIGURACION -->
         <div style="padding:16px 20px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-          <div class="form-group" style="margin-bottom:0;min-width:180px">
-            <label class="form-label">Tipo de inventario</label>
+          <div class="form-group" style="margin-bottom:0;min-width:160px">
+            <label class="form-label">Tipo</label>
             <select class="form-select" name="tipo" id="tipo-select" onchange="cambiarTipo(this.value)">
-              <option value="bodega">🏭 Bodega Central</option>
+              <option value="bodega">🏭 Bodega</option>
               <option value="cuadrilla">🚚 Cuadrilla</option>
             </select>
           </div>
-          <div class="form-group" id="cuadrilla-field" style="display:none;margin-bottom:0;min-width:200px">
+          <div class="form-group" id="cuadrilla-field" style="display:none;margin-bottom:0;min-width:180px">
             <label class="form-label">Cuadrilla</label>
             <select class="form-select" name="cuadrilla_id" id="cuadrilla-select" onchange="cargarStockCuadrilla(this.value)">
               <option value="">Seleccionar...</option>
               {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
             </select>
           </div>
+          <div class="form-group" style="margin-bottom:0;min-width:150px">
+            <label class="form-label">Fecha del inventario</label>
+            <input type="date" name="fecha_inventario" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}">
+          </div>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-            <input type="text" id="buscadorInv" class="form-input" placeholder="🔍 Filtrar productos..." style="width:200px" oninput="filtrarInv(this.value)">
+            <input type="text" id="buscadorInv" class="form-input" placeholder="🔍 Filtrar..." style="width:160px" oninput="filtrarInv(this.value)">
             <button type="button" onclick="desmarcarTodosInv()" class="btn btn-outline btn-sm">Limpiar</button>
           </div>
         </div>
 
-        <!-- AVISO CARGA -->
-        <div id="avisoInv" style="padding:14px 20px;background:#eef5ff;border-bottom:1px solid var(--border);font-size:13px;color:var(--primary);font-weight:600;display:flex;align-items:center;gap:8px">
-          💡 Se muestran todos los productos con su stock actual. Modifica solo los que necesiten ajuste.
+        <!-- AVISO -->
+        <div id="avisoInv" style="padding:12px 20px;background:#eef5ff;border-bottom:1px solid var(--border);font-size:13px;color:var(--primary);font-weight:600">
+          💡 Todos los productos con su stock actual. Ingresa solo los que necesiten ajuste.
         </div>
 
-        <!-- TABLA STOCKS -->
-        <div style="max-height:420px;overflow-y:auto">
+        <!-- TABLA -->
+        <div style="max-height:380px;overflow-y:auto">
           <table style="width:100%;border-collapse:collapse">
             <thead style="position:sticky;top:0;background:#f8fafc;z-index:1;border-bottom:2px solid var(--border)">
               <tr>
@@ -112,22 +162,21 @@
                   <div style="font-size:10px;color:var(--text-muted)">{{ p.unidad }}</div>
                 </td>
                 <td style="padding:8px 16px;text-align:center">
-                  <input type="number" class="form-input inp-real" data-pid="{{ p.id }}" data-nombre="{{ p.descripcion }}"
+                  <input type="number" class="form-input inp-real" data-pid="{{ p.id }}"
                     placeholder="—" min="0" step="0.01"
-                    style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:95px;border:2px solid var(--border);border-radius:6px;color:var(--text)"
+                    style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:95px;border:2px solid var(--border);border-radius:6px"
                     oninput="actualizarDif(this)"
                     onfocus="activarFila(this)"
                     onblur="desactivarFila(this)">
                 </td>
                 <td style="padding:10px 16px;text-align:center" id="dif-{{ p.id }}">
-                  <span style="font-size:13px;color:var(--text-muted)">—</span>
+                  <span style="color:var(--text-muted)">—</span>
                 </td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-
         <div id="hiddenInputsInv"></div>
       </div>
 
@@ -150,104 +199,148 @@
     <form method="POST" action="{{ url_for('inventario.cargar_excel') }}" enctype="multipart/form-data">
       <div class="modal-body">
         <div style="background:#e8f5f3;border-radius:6px;padding:12px;font-size:13px;color:#2a9d8f;font-weight:600;margin-bottom:16px">
-          📋 Formato esperado: <strong>Columna A</strong> = nombre, <strong>Columna B</strong> = código, <strong>Columna C</strong> = cantidad
+          📋 Formato: <strong>Col A</strong> = nombre, <strong>Col B</strong> = código, <strong>Col C</strong> = cantidad
         </div>
         <div class="form-row">
           <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Tipo de inventario</label>
+            <label class="form-label">Tipo</label>
             <select class="form-select" name="tipo" id="excel-tipo" onchange="toggleExcelCuadrilla(this.value)">
-              <option value="bodega">🏭 Bodega Central</option>
+              <option value="bodega">🏭 Bodega</option>
               <option value="cuadrilla">🚚 Cuadrilla</option>
             </select>
           </div>
-          <div class="form-group" id="excel-cuadrilla-field" style="display:none;margin-bottom:0">
-            <label class="form-label">Cuadrilla</label>
-            <select class="form-select" name="cuadrilla_id">
-              <option value="">Seleccionar...</option>
-              {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
-            </select>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Fecha del inventario</label>
+            <input type="date" name="fecha_inventario" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}">
           </div>
+        </div>
+        <div class="form-group" id="excel-cuadrilla-field" style="display:none;margin-top:10px">
+          <label class="form-label">Cuadrilla</label>
+          <select class="form-select" name="cuadrilla_id">
+            <option value="">Seleccionar...</option>
+            {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+          </select>
         </div>
         <div class="form-group" style="margin-top:14px">
           <label class="form-label">Archivo Excel (.xlsx)</label>
-          <input type="file" name="archivo_excel" class="form-input" accept=".xlsx,.xls" required
-            style="padding:8px;cursor:pointer">
+          <input type="file" name="archivo_excel" class="form-input" accept=".xlsx,.xls" required style="padding:8px;cursor:pointer">
         </div>
-        <div class="info-box" style="margin-top:10px">
-          💡 El sistema buscará cada código en el catálogo de productos y ajustará el stock automáticamente. Los códigos no encontrados se informarán al final.
-        </div>
+        <div class="info-box">💡 El sistema buscará cada código y ajustará el stock automáticamente.</div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" onclick="closeModal('excelModal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f">📊 Aplicar Inventario</button>
+        <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f">📊 Aplicar</button>
       </div>
     </form>
   </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-// ── DATOS PRODUCTOS ──────────────────────────────────────────
-const PRODUCTOS_INV = [
-  {% for p in productos %}
-  { id: {{ p.id }}, stock: {{ p.stock_bodega }} }{{ ',' if not loop.last }}
-  {% endfor %}
-];
+// ── VER DETALLE ───────────────────────────────────────────────
+async function verDetalle(id) {
+  openModal('detalleInvModal');
+  document.getElementById('detalleInvBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">Cargando...</div>';
 
-// ── CAMBIAR TIPO ─────────────────────────────────────────────
+  const res  = await fetch(`/inventario/detalle/${id}`);
+  const data = await res.json();
+
+  document.getElementById('detalleInvTitulo').textContent = `${data.tipo === 'bodega' ? '🏭 Bodega' : '🚚 ' + data.cuadrilla} — ${data.fecha}`;
+  document.getElementById('detalleInvHeader').style.background = data.tipo === 'bodega' ? '#1a2b3c' : '#2a6ab8';
+
+  const conDif = data.items.filter(i => i.diferencia !== 0).length;
+
+  let rows = data.items.map((item, idx) => {
+    const difColor = item.diferencia > 0 ? '#2a9d8f' : item.diferencia < 0 ? 'var(--danger)' : 'var(--text-muted)';
+    const difIcon  = item.diferencia > 0 ? '▲' : item.diferencia < 0 ? '▼' : '=';
+    const bg       = item.diferencia !== 0 ? (item.diferencia < 0 ? '#ffeaea' : '#f0fdf8') : (idx%2===0?'#fff':'#fafcff');
+    return `<tr style="border-bottom:1px solid var(--border);background:${bg}">
+      <td style="padding:10px 14px">
+        <div style="font-size:13px;font-weight:600">${item.nombre}</div>
+        <div style="font-size:11px;color:var(--text-muted);font-family:monospace">${item.codigo} · ${item.unidad}</div>
+      </td>
+      <td style="padding:10px 14px;text-align:center">
+        <span style="font-size:18px;font-weight:800;color:var(--primary)">${item.sistema}</span>
+      </td>
+      <td style="padding:10px 14px;text-align:center">
+        <span style="font-size:18px;font-weight:800;color:#2a9d8f">${item.real}</span>
+      </td>
+      <td style="padding:10px 14px;text-align:center">
+        <span style="font-size:16px;font-weight:800;color:${difColor}">${difIcon} ${Math.abs(item.diferencia)}</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('detalleInvBody').innerHTML = `
+    <div style="padding:12px 20px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;gap:16px;font-size:12px;flex-wrap:wrap">
+      <span>📅 <strong>${data.fecha}</strong></span>
+      <span>👤 <strong>${data.usuario}</strong></span>
+      <span style="margin-left:auto;font-weight:700;color:${conDif > 0 ? 'var(--danger)' : 'var(--success)'}">
+        ${conDif > 0 ? '⚠️ ' + conDif + ' diferencias' : '✅ Sin diferencias'}
+      </span>
+    </div>
+    <div style="overflow-x:auto;max-height:450px;overflow-y:auto">
+    <table style="width:100%;border-collapse:collapse">
+      <thead style="position:sticky;top:0;background:#f8fafc;border-bottom:2px solid var(--border)">
+        <tr>
+          <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+          <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--primary);font-weight:700;text-align:center;width:110px">Sistema</th>
+          <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#2a9d8f;font-weight:700;text-align:center;width:110px">Real</th>
+          <th style="padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;text-align:center;width:100px">Diferencia</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+}
+
+// ── TIPO INVENTARIO ───────────────────────────────────────────
 function cambiarTipo(tipo) {
   const cf = document.getElementById('cuadrilla-field');
   cf.style.display = tipo === 'cuadrilla' ? 'block' : 'none';
   if (tipo === 'bodega') {
     document.getElementById('invHeader').style.background = '#1a2b3c';
-    document.getElementById('avisoInv').textContent = '💡 Stocks de bodega central. Modifica solo los que necesiten ajuste.';
-    // Restaurar stocks bodega
+    document.getElementById('avisoInv').textContent = '💡 Stock de bodega central. Ingresa solo los que necesiten ajuste.';
     document.querySelectorAll('.inv-row').forEach(row => {
-      const pid   = row.dataset.pid;
-      const stock = parseFloat(row.dataset.stock);
-      row.querySelector('.stock-sistema').textContent = formatNum(stock);
       row.style.display = '';
+      const sisEl = row.querySelector('.stock-sistema');
+      sisEl.textContent = formatNum(parseFloat(sisEl.dataset.val));
     });
     desmarcarTodosInv();
   }
 }
 
-// ── CARGAR STOCK CUADRILLA ────────────────────────────────────
 async function cargarStockCuadrilla(cuadrillaId) {
   if (!cuadrillaId) return;
   document.getElementById('invHeader').style.background = '#2a6ab8';
-  document.getElementById('avisoInv').textContent = '⏳ Cargando stock teórico de la cuadrilla...';
-
-  const res   = await fetch(`/inventario/stock_cuadrilla/${cuadrillaId}`);
+  document.getElementById('avisoInv').textContent = '⏳ Cargando stock teórico...';
+  const res    = await fetch(`/inventario/stock_cuadrilla/${cuadrillaId}`);
   const stocks = await res.json();
 
-  // Ocultar todas las filas primero
   document.querySelectorAll('.inv-row').forEach(row => {
     row.style.display = 'none';
     row.querySelector('.stock-sistema').textContent = '0';
+    row.querySelector('.stock-sistema').dataset.val = '0';
   });
 
-  if (stocks.length === 0) {
-    document.getElementById('avisoInv').textContent = '⚠️ Esta cuadrilla no tiene stock teórico registrado aún.';
-    return;
-  }
-
-  // Mostrar solo los que tienen stock en esta cuadrilla
   stocks.forEach(s => {
     const row = document.querySelector(`.inv-row[data-pid="${s.producto_id}"]`);
     if (row) {
       row.style.display = '';
-      row.querySelector('.stock-sistema').textContent = formatNum(s.cantidad);
+      const sisEl = row.querySelector('.stock-sistema');
+      sisEl.textContent = formatNum(s.cantidad);
+      sisEl.dataset.val = s.cantidad;
     }
   });
 
   desmarcarTodosInv();
-  document.getElementById('avisoInv').textContent = `✅ Mostrando ${stocks.length} producto(s) con stock en esta cuadrilla. Modifica los que necesiten ajuste.`;
-  document.getElementById('avisoInv').style.background = '#e8f5f3';
-  document.getElementById('avisoInv').style.color = '#2a9d8f';
+  document.getElementById('avisoInv').textContent =
+    stocks.length > 0
+      ? `✅ ${stocks.length} producto(s) en esta cuadrilla. Ingresa el conteo físico real.`
+      : '⚠️ Esta cuadrilla no tiene stock teórico registrado.';
+  document.getElementById('avisoInv').style.color = stocks.length > 0 ? '#2a9d8f' : 'var(--warning)';
 }
 
 // ── FILTRAR ───────────────────────────────────────────────────
@@ -259,63 +352,43 @@ function filtrarInv(q) {
   });
 }
 
-// ── ACTIVAR/DESACTIVAR FILA ───────────────────────────────────
+// ── FILA ─────────────────────────────────────────────────────
 function activarFila(inp) {
-  const row = inp.closest('tr');
-  row.style.background = '#e8f5ff';
+  inp.closest('tr').style.background = '#e8f5ff';
   inp.style.borderColor = 'var(--primary)';
 }
-
 function desactivarFila(inp) {
-  const row = inp.closest('tr');
   if (!inp.value) {
-    row.style.background = '';
+    inp.closest('tr').style.background = '';
     inp.style.borderColor = 'var(--border)';
   }
 }
 
-// ── CALCULAR DIFERENCIA EN TIEMPO REAL ───────────────────────
+// ── DIFERENCIA EN TIEMPO REAL ─────────────────────────────────
 function actualizarDif(inp) {
-  const pid       = inp.dataset.pid;
-  const row       = inp.closest('tr');
-  const sisEl     = row.querySelector('.stock-sistema');
-  const stockSis  = parseFloat(sisEl.dataset.val || sisEl.textContent) || 0;
+  const pid      = inp.dataset.pid;
+  const sisEl    = inp.closest('tr').querySelector('.stock-sistema');
+  const stockSis = parseFloat(sisEl.dataset.val) || 0;
   const stockReal = parseFloat(inp.value);
-  const difEl     = document.getElementById(`dif-${pid}`);
+  const difEl    = document.getElementById(`dif-${pid}`);
 
   if (isNaN(stockReal) || inp.value === '') {
-    difEl.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
-      actualizarResumen();
-    return;
+    difEl.innerHTML = '<span style="color:var(--text-muted)">—</span>';
+    actualizarResumen(); return;
   }
 
   const dif   = Math.round((stockReal - stockSis) * 10000) / 10000;
   const color = dif > 0 ? 'var(--success)' : dif < 0 ? 'var(--danger)' : 'var(--text-muted)';
   const icon  = dif > 0 ? '▲' : dif < 0 ? '▼' : '=';
   difEl.innerHTML = `<span style="font-size:15px;font-weight:800;color:${color}">${icon} ${formatNum(Math.abs(dif))}</span>`;
-
-  // Highlight fila segun diferencia
-  row.style.background = dif !== 0 ? (dif > 0 ? '#f0fdf8' : '#ffeaea') : '#e8f5ff';
+  inp.closest('tr').style.background = dif !== 0 ? (dif < 0 ? '#ffeaea' : '#f0fdf8') : '#e8f5ff';
   actualizarResumen();
 }
 
 function actualizarResumen() {
   let count = 0;
-  document.querySelectorAll('.inp-real').forEach(inp => {
-    if (inp.value !== '') count++;
-  });
-  document.getElementById('resumenInv').textContent =
-    count > 0 ? `${count} producto(s) con ajuste pendiente` : 'Sin cambios';
-}
-
-function actualizarResumen() {
-  const modificados = document.querySelectorAll('.inp-real[value]:not([value=""]),.inp-real').length;
-  let count = 0;
-  document.querySelectorAll('.inp-real').forEach(inp => {
-    if (inp.value !== '') count++;
-  });
-  document.getElementById('resumenInv').textContent =
-    count > 0 ? `${count} producto(s) con ajuste pendiente` : 'Sin cambios';
+  document.querySelectorAll('.inp-real').forEach(inp => { if (inp.value !== '') count++; });
+  document.getElementById('resumenInv').textContent = count > 0 ? `${count} producto(s) con ajuste` : 'Sin cambios';
 }
 
 // ── LIMPIAR ───────────────────────────────────────────────────
@@ -326,56 +399,46 @@ function desmarcarTodosInv() {
     inp.closest('tr').style.background = '';
   });
   document.querySelectorAll('[id^="dif-"]').forEach(el => {
-    el.innerHTML = '<span style="font-size:13px;color:var(--text-muted)">—</span>';
+    el.innerHTML = '<span style="color:var(--text-muted)">—</span>';
   });
   document.getElementById('resumenInv').textContent = 'Sin cambios';
   document.getElementById('buscadorInv').value = '';
 }
 
-// ── PREPARAR SUBMIT ───────────────────────────────────────────
+// ── SUBMIT ────────────────────────────────────────────────────
 function prepararInv() {
   const tipo = document.getElementById('tipo-select').value;
   if (tipo === 'cuadrilla' && !document.getElementById('cuadrilla-select').value) {
-    alert('Selecciona una cuadrilla.');
-    return false;
+    alert('Selecciona una cuadrilla.'); return false;
   }
-
-  // Recopilar solo los productos con valor ingresado
-  const filas = [];
+  document.querySelectorAll('.inv-hidden-gen').forEach(el => el.remove());
+  const form = document.getElementById('invForm');
+  let count = 0;
   document.querySelectorAll('.inp-real').forEach(inp => {
-    if (inp.value !== '' && inp.value !== null) {
-      filas.push({ pid: inp.dataset.pid, cant: inp.value });
+    if (inp.value !== '') {
+      count++;
+      const ip = document.createElement('input');
+      ip.type = 'hidden'; ip.name = 'producto_id[]';
+      ip.value = inp.dataset.pid; ip.className = 'inv-hidden-gen';
+      form.appendChild(ip);
+      const ic = document.createElement('input');
+      ic.type = 'hidden'; ic.name = 'cantidad_real[]';
+      ic.value = inp.value; ic.className = 'inv-hidden-gen';
+      form.appendChild(ic);
     }
   });
-
-  if (filas.length === 0) {
-    alert('No hay productos con ajuste. Ingresa el stock real de los productos que necesiten corrección.');
-    return false;
-  }
-
-  // Eliminar inputs previos generados
-  document.querySelectorAll('.inv-hidden-gen').forEach(el => el.remove());
-
-  // Crear pares de hidden inputs solo para los productos modificados
-  const form = document.getElementById('invForm');
-  filas.forEach(f => {
-    const ip = document.createElement('input');
-    ip.type = 'hidden'; ip.name = 'producto_id[]';
-    ip.value = f.pid; ip.className = 'inv-hidden-gen';
-    form.appendChild(ip);
-
-    const ic = document.createElement('input');
-    ic.type = 'hidden'; ic.name = 'cantidad_real[]';
-    ic.value = f.cant; ic.className = 'inv-hidden-gen';
-    form.appendChild(ic);
-  });
-
+  if (count === 0) { alert('Ingresa el stock real de al menos un producto.'); return false; }
   return true;
+}
+
+// ── EXCEL ─────────────────────────────────────────────────────
+function toggleExcelCuadrilla(val) {
+  document.getElementById('excel-cuadrilla-field').style.display = val === 'cuadrilla' ? 'block' : 'none';
 }
 
 // ── FORMATO NUMERO ────────────────────────────────────────────
 function formatNum(n) {
-  if (n === null || n === undefined) return '0';
+  if (!n && n !== 0) return '0';
   const f = parseFloat(n);
   if (f === Math.floor(f)) return String(Math.floor(f));
   return parseFloat(f.toFixed(4)).toString().replace(/\.?0+$/, '');
@@ -387,46 +450,34 @@ document.addEventListener('keydown', function(e) {
   if (!document.getElementById('inventarioModal').classList.contains('open')) return;
   if (document.activeElement.classList.contains('inp-real')) return;
   if (document.activeElement.id === 'buscadorInv') return;
-
   if (e.key === 'Enter') {
     e.preventDefault(); e.stopPropagation();
     const cod = bufferInv.trim(); bufferInv = ''; clearTimeout(timerInv);
     if (cod.length >= 6) {
       let found = false;
       document.querySelectorAll('.inv-row').forEach(row => {
-        if (row.dataset.nombre.includes(cod.toLowerCase())) {
+        if (row.style.display !== 'none' && row.dataset.nombre.includes(cod.toLowerCase())) {
           found = true;
-          row.style.display = '';
           const inp = row.querySelector('.inp-real');
           inp.focus(); inp.select();
           row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          row.style.background = '#e8f5ff';
         }
       });
-      if (!found) toastInv(`⚠️ Código ${cod} no encontrado`);
+      if (!found) {
+        let t = document.getElementById('toastInv');
+        if (!t) { t = document.createElement('div'); t.id = 'toastInv';
+          t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #f4a261;display:none';
+          document.body.appendChild(t); }
+        t.textContent = `⚠️ Código ${cod} no encontrado`;
+        t.style.display = 'block';
+        clearTimeout(t._t);
+        t._t = setTimeout(() => { t.style.display = 'none'; }, 2500);
+      }
     }
   } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
     bufferInv += e.key; clearTimeout(timerInv);
     timerInv = setTimeout(() => { bufferInv = ''; }, 150);
   }
 }, true);
-
-function toggleExcelCuadrilla(val) {
-  document.getElementById('excel-cuadrilla-field').style.display = val === 'cuadrilla' ? 'block' : 'none';
-}
-
-function toastInv(msg) {
-  let t = document.getElementById('toastInv');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toastInv';
-    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #f4a261;display:none;max-width:300px';
-    document.body.appendChild(t);
-  }
-  t.textContent = msg;
-  t.style.display = 'block';
-  clearTimeout(t._t);
-  t._t = setTimeout(() => { t.style.display = 'none'; }, 2500);
-}
 </script>
 {% endblock %}

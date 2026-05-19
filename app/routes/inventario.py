@@ -2,22 +2,57 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.models import Inventario, InventarioItem, Cuadrilla, Producto, StockCuadrilla
 from app import db
+from datetime import datetime
 
 inventario_bp = Blueprint('inventario', __name__, url_prefix='/inventario')
 
 @inventario_bp.route('/')
 @login_required
 def index():
-    inventarios = Inventario.query.order_by(Inventario.creado_en.desc()).all()
+    # Filtros
+    cuadrilla_id = request.args.get('cuadrilla_id', '')
+    tipo_filtro  = request.args.get('tipo', '')
+
+    q = Inventario.query
+    if cuadrilla_id:
+        q = q.filter_by(cuadrilla_id=cuadrilla_id)
+    if tipo_filtro:
+        q = q.filter_by(tipo=tipo_filtro)
+
+    inventarios = q.order_by(Inventario.creado_en.desc()).all()
     cuadrillas  = Cuadrilla.query.filter_by(activa=True).all()
     productos   = Producto.query.filter_by(activo=True).order_by(Producto.descripcion).all()
+
     return render_template('inventario.html',
-        inventarios=inventarios, cuadrillas=cuadrillas, productos=productos)
+        inventarios=inventarios, cuadrillas=cuadrillas,
+        productos=productos, now=datetime.now(),
+        cuadrilla_filtro=cuadrilla_id, tipo_filtro=tipo_filtro)
+
+
+@inventario_bp.route('/detalle/<int:inv_id>')
+@login_required
+def detalle(inv_id):
+    inv = Inventario.query.get_or_404(inv_id)
+    return jsonify({
+        'id':        inv.id,
+        'tipo':      inv.tipo,
+        'fecha':     inv.creado_en.strftime('%d/%m/%Y %H:%M'),
+        'cuadrilla': inv.cuadrilla.nombre if inv.cuadrilla else 'Bodega',
+        'usuario':   inv.usuario.nombre if inv.usuario else '—',
+        'items': [{
+            'nombre':       item.producto.descripcion,
+            'codigo':       item.producto.codigo,
+            'unidad':       item.producto.unidad,
+            'sistema':      item.stock_sistema,
+            'real':         item.stock_real,
+            'diferencia':   item.diferencia,
+        } for item in inv.items]
+    })
+
 
 @inventario_bp.route('/stock_cuadrilla/<int:cuadrilla_id>')
 @login_required
 def stock_cuadrilla(cuadrilla_id):
-    """API: retorna stock teorico de una cuadrilla para precargar inventario"""
     stocks = StockCuadrilla.query.filter_by(cuadrilla_id=cuadrilla_id).all()
     data = []
     for sc in stocks:
@@ -31,15 +66,27 @@ def stock_cuadrilla(cuadrilla_id):
             })
     return jsonify(data)
 
+
 @inventario_bp.route('/nuevo', methods=['POST'])
 @login_required
 def nuevo():
-    tipo         = request.form.get('tipo')  # bodega | cuadrilla
+    tipo         = request.form.get('tipo')
     cuadrilla_id = request.form.get('cuadrilla_id') or None
+    fecha_inv    = request.form.get('fecha_inventario', '')
     producto_ids = request.form.getlist('producto_id[]')
     cantidades   = request.form.getlist('cantidad_real[]')
 
-    inv = Inventario(tipo=tipo, cuadrilla_id=cuadrilla_id, usuario_id=current_user.id)
+    # Fecha manual
+    if fecha_inv:
+        try:
+            fecha_dt = datetime.strptime(fecha_inv, '%Y-%m-%d')
+        except:
+            fecha_dt = datetime.utcnow()
+    else:
+        fecha_dt = datetime.utcnow()
+
+    inv = Inventario(tipo=tipo, cuadrilla_id=cuadrilla_id,
+                     usuario_id=current_user.id, creado_en=fecha_dt)
     db.session.add(inv)
     db.session.flush()
 
@@ -50,12 +97,10 @@ def nuevo():
         cant_real = float(cant_real)
 
         if tipo == 'bodega':
-            # Solo toca stock bodega — NO toca cuadrillas
             stock_sistema         = producto.stock_bodega
             diferencia            = cant_real - stock_sistema
             producto.stock_bodega = cant_real
         else:
-            # Solo toca stock cuadrilla — NO toca bodega
             sc = StockCuadrilla.query.filter_by(
                 cuadrilla_id=cuadrilla_id, producto_id=pid).first()
             stock_sistema = sc.cantidad if sc else 0
@@ -77,7 +122,7 @@ def nuevo():
         db.session.add(item)
 
     db.session.commit()
-    flash('✅ Inventario aplicado y stock ajustado', 'success')
+    flash('✅ Inventario registrado y stock actualizado', 'success')
     return redirect(url_for('inventario.index'))
 
 
@@ -87,9 +132,10 @@ def cargar_excel():
     import openpyxl
     from io import BytesIO
 
-    archivo = request.files.get('archivo_excel')
-    tipo    = request.form.get('tipo', 'bodega')
+    archivo      = request.files.get('archivo_excel')
+    tipo         = request.form.get('tipo', 'bodega')
     cuadrilla_id = request.form.get('cuadrilla_id') or None
+    fecha_inv    = request.form.get('fecha_inventario', '')
 
     if not archivo or archivo.filename == '':
         flash('Debes seleccionar un archivo Excel', 'error')
@@ -102,13 +148,12 @@ def cargar_excel():
         flash(f'Error al leer el Excel: {str(e)}', 'error')
         return redirect(url_for('inventario.index'))
 
-    # Leer filas — formato: col A = nombre, col B = código, col C = cantidad
     filas = []
     for row in ws.iter_rows(values_only=True):
         if not row[1] or not row[2]:
             continue
         try:
-            codigo  = str(int(row[1])).strip()
+            codigo   = str(int(row[1])).strip()
             cantidad = float(row[2])
             filas.append((codigo, cantidad))
         except:
@@ -118,8 +163,16 @@ def cargar_excel():
         flash('No se encontraron datos válidos en el Excel', 'error')
         return redirect(url_for('inventario.index'))
 
-    # Crear inventario
-    inv = Inventario(tipo=tipo, cuadrilla_id=cuadrilla_id, usuario_id=current_user.id)
+    if fecha_inv:
+        try:
+            fecha_dt = datetime.strptime(fecha_inv, '%Y-%m-%d')
+        except:
+            fecha_dt = datetime.utcnow()
+    else:
+        fecha_dt = datetime.utcnow()
+
+    inv = Inventario(tipo=tipo, cuadrilla_id=cuadrilla_id,
+                     usuario_id=current_user.id, creado_en=fecha_dt)
     db.session.add(inv)
     db.session.flush()
 
@@ -159,7 +212,6 @@ def cargar_excel():
         ajustados += 1
 
     db.session.commit()
-
     msg = f'✅ {ajustados} producto(s) ajustados desde Excel'
     if no_encontrados:
         msg += f' — {len(no_encontrados)} código(s) no encontrados: {", ".join(no_encontrados[:5])}'

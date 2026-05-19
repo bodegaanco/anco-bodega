@@ -93,6 +93,16 @@
             <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
           </div>
         </div>
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Fecha de entrega</label>
+            <input type="date" name="fecha_entrega" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Hora de entrega</label>
+            <input type="time" name="hora_entrega" class="form-input" value="{{ now.strftime('%H:%M') }}">
+          </div>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
           <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos</label>
           <input type="text" id="buscadorManual" class="form-input" placeholder="🔍 Filtrar..." style="flex:1" oninput="filtrarManual(this.value)">
@@ -128,7 +138,7 @@
                 </td>
                 <td style="padding:6px 12px;text-align:center">
                   <input type="number" class="form-input cant-manual" data-pid="{{ p.id }}"
-                    placeholder="0" min="0.01" step="0.01"
+                    placeholder="0" min="0" step="0.01"
                     style="text-align:center;padding:5px 6px;font-size:13px;display:none"
                     oninput="actualizarContadorManual()">
                 </td>
@@ -168,6 +178,16 @@
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Notas (opcional)</label>
             <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Fecha de entrega</label>
+            <input type="date" name="fecha_entrega" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Hora de entrega</label>
+            <input type="time" name="hora_entrega" class="form-input" value="{{ now.strftime('%H:%M') }}">
           </div>
         </div>
         <div style="background:#eef5ff;border-radius:8px;padding:14px;margin-bottom:14px">
@@ -584,7 +604,7 @@ function renderListaEscaner() {
       </td>
       <td style="padding:6px 14px;text-align:center">
         <input type="number" id="cant-esc-${p.id}" class="form-input"
-          value="${p.cantidad}" min="0.01" step="0.01"
+          value="${p.cantidad}" min="0" step="0.01"
           style="text-align:center;padding:5px 8px;font-size:14px;font-weight:700;width:90px"
           onchange="actualizarCantEscaner(${p.id}, this.value)">
       </td>
