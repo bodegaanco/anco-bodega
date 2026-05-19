@@ -145,121 +145,89 @@ def comparativo():
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = 'Resumen por Cuadrilla'
+    ws.title = 'Comparativo Mensual'
 
     meses_es = ['', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-    # ── Hoja 1: Resumen Entregado vs Utilizado ──
-    ws.merge_cells('A1:G1')
-    ws['A1'] = f'ANCO — Entregado vs Utilizado por Cuadrilla — {meses_es[mes]} {año}'
+    ws.merge_cells('A1:F1')
+    ws['A1'] = f'ANCO — Consumo por Cuadrilla — {meses_es[mes]} {año}'
     ws['A1'].font      = Font(bold=True, size=13, color='FFFFFF')
     ws['A1'].fill      = PatternFill('solid', fgColor=AZUL_OSCURO)
     ws['A1'].alignment = Alignment(horizontal='center')
     ws.row_dimensions[1].height = 28
 
-    headers = ['Cuadrilla', 'N° Entregas', 'Prods. Entregados',
-               'Total Entregado', 'Prods. Utilizados', 'Total Utilizado', 'Diferencia']
+    # ── Hoja 1: Resumen por cuadrilla ──
+    headers = ['Cuadrilla', 'N° Salidas', 'N° OT Rendidas', 'Productos distintos usados']
     for i, h in enumerate(headers, 1):
         c = ws.cell(row=2, column=i, value=h)
-        c.font = Font(bold=True, color='FFFFFF')
-        c.fill = PatternFill('solid', fgColor=AZUL)
-        c.alignment = Alignment(horizontal='center', wrap_text=True)
-    ws.row_dimensions[2].height = 32
+        c.font = Font(bold=True, color='FFFFFF'); c.fill = PatternFill('solid', fgColor=AZUL)
+        c.alignment = Alignment(horizontal='center')
 
     cuadrillas = Cuadrilla.query.filter_by(activa=True).all()
     for row_n, c_obj in enumerate(cuadrillas, 3):
         salidas_mes = Salida.query.filter(
             Salida.cuadrilla_id == c_obj.id,
-            Salida.anulada == False,
             db.func.extract('year',  Salida.creado_en) == año,
             db.func.extract('month', Salida.creado_en) == mes
-        ).all()
-        items_sal       = [i for s in salidas_mes for i in s.items]
-        total_entregado = sum(i.cantidad for i in items_sal)
-        prods_entregados = len(set(i.producto_id for i in items_sal))
+        ).count()
+        ots_mes = Rendicion.query.filter(
+            Rendicion.cuadrilla_id == c_obj.id,
+            db.func.extract('year',  Rendicion.creado_en) == año,
+            db.func.extract('month', Rendicion.creado_en) == mes
+        ).count()
+        prods_distintos = db.session.query(func.count(func.distinct(RendicionItem.producto_id)))\
+            .join(Rendicion)\
+            .filter(
+                Rendicion.cuadrilla_id == c_obj.id,
+                db.func.extract('year',  Rendicion.creado_en) == año,
+                db.func.extract('month', Rendicion.creado_en) == mes
+            ).scalar() or 0
 
-        from app.models import RendicionSalida, RendicionSalidaItem
-        rend_items = db.session.query(RendicionSalidaItem)            .join(RendicionSalida)            .filter(
-                RendicionSalida.cuadrilla_id == c_obj.id,
-                db.func.extract('year',  RendicionSalida.creado_en) == año,
-                db.func.extract('month', RendicionSalida.creado_en) == mes
-            ).all()
-        total_utilizado  = sum(i.cantidad_rendida for i in rend_items)
-        prods_utilizados = len(set(i.producto_id for i in rend_items))
-        diferencia       = total_entregado - total_utilizado
-
-        for col_n, val in enumerate([c_obj.nombre, len(salidas_mes), prods_entregados,
-                                      total_entregado, prods_utilizados, total_utilizado, diferencia], 1):
+        for col_n, val in enumerate([c_obj.nombre, salidas_mes, ots_mes, prods_distintos], 1):
             cell = ws.cell(row=row_n, column=col_n, value=val)
             cell.border = borde_fino()
             if row_n % 2 == 0:
                 cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
-            if col_n == 7:
-                cell.font = Font(bold=True, color='E63946' if isinstance(val, (int,float)) and val > 0 else '2A9D8F')
 
     auto_ancho(ws)
 
-    # ── Hoja 2: Detalle Entregas (Salidas) ──
-    ws2 = wb.create_sheet('Detalle Entregas')
-    ws2.merge_cells('A1:G1')
-    ws2['A1'] = f'Detalle de Entregas — {meses_es[mes]} {año}'
+    # ── Hoja 2: Detalle por cuadrilla ──
+    ws2 = wb.create_sheet('Detalle Consumo')
+    ws2.merge_cells('A1:F1')
+    ws2['A1'] = f'Detalle de consumo por OT — {meses_es[mes]} {año}'
     ws2['A1'].font      = Font(bold=True, size=12, color='FFFFFF')
     ws2['A1'].fill      = PatternFill('solid', fgColor=AZUL_OSCURO)
     ws2['A1'].alignment = Alignment(horizontal='center')
 
-    for i, h in enumerate(['Cuadrilla','Fecha','Producto','Código','Cant. Entregada','Unidad','Notas'], 1):
+    headers2 = ['Cuadrilla', 'N° OT', 'Fecha', 'Producto', 'Cantidad', 'Unidad']
+    for i, h in enumerate(headers2, 1):
         c = ws2.cell(row=2, column=i, value=h)
         c.font = Font(bold=True, color='FFFFFF'); c.fill = PatternFill('solid', fgColor=AZUL)
         c.alignment = Alignment(horizontal='center')
 
-    salidas_todas = Salida.query.filter(
-        Salida.anulada == False,
-        db.func.extract('year',  Salida.creado_en) == año,
-        db.func.extract('month', Salida.creado_en) == mes
-    ).order_by(Salida.cuadrilla_id, Salida.creado_en).all()
+    rendiciones = Rendicion.query.filter(
+        db.func.extract('year',  Rendicion.creado_en) == año,
+        db.func.extract('month', Rendicion.creado_en) == mes
+    ).order_by(Rendicion.cuadrilla_id, Rendicion.creado_en).all()
 
     row_n = 3
-    for s in salidas_todas:
-        for item in s.items:
-            for col_n, val in enumerate([s.cuadrilla.nombre, s.creado_en.strftime('%d/%m/%Y %H:%M'),
-                item.producto.descripcion, item.producto.codigo, item.cantidad,
-                item.producto.unidad, s.notas or ''], 1):
+    for r in rendiciones:
+        for item in r.items:
+            for col_n, val in enumerate([
+                r.cuadrilla.nombre, r.numero_ot,
+                r.creado_en.strftime('%d/%m/%Y'),
+                item.producto.descripcion,
+                item.cantidad_usada,
+                item.producto.unidad
+            ], 1):
                 cell = ws2.cell(row=row_n, column=col_n, value=val)
                 cell.border = borde_fino()
-                if row_n % 2 == 0: cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
+                if row_n % 2 == 0:
+                    cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
             row_n += 1
+
     auto_ancho(ws2)
-
-    # ── Hoja 3: Detalle Utilizado (Rendiciones por Salida) ──
-    ws3 = wb.create_sheet('Detalle Utilizado')
-    ws3.merge_cells('A1:F1')
-    ws3['A1'] = f'Detalle de Material Utilizado — {meses_es[mes]} {año}'
-    ws3['A1'].font      = Font(bold=True, size=12, color='FFFFFF')
-    ws3['A1'].fill      = PatternFill('solid', fgColor=AZUL_OSCURO)
-    ws3['A1'].alignment = Alignment(horizontal='center')
-
-    for i, h in enumerate(['Cuadrilla','Fecha Rendición','Producto','Código','Cant. Utilizada','Unidad'], 1):
-        c = ws3.cell(row=2, column=i, value=h)
-        c.font = Font(bold=True, color='FFFFFF'); c.fill = PatternFill('solid', fgColor=AZUL)
-        c.alignment = Alignment(horizontal='center')
-
-    from app.models import RendicionSalida, RendicionSalidaItem
-    rend_todas = db.session.query(RendicionSalida, RendicionSalidaItem)        .join(RendicionSalidaItem)        .filter(
-            db.func.extract('year',  RendicionSalida.creado_en) == año,
-            db.func.extract('month', RendicionSalida.creado_en) == mes
-        ).order_by(RendicionSalida.cuadrilla_id, RendicionSalida.creado_en).all()
-
-    row_n = 3
-    for rend, item in rend_todas:
-        for col_n, val in enumerate([rend.cuadrilla.nombre, rend.creado_en.strftime('%d/%m/%Y'),
-            item.producto.descripcion, item.producto.codigo,
-            item.cantidad_rendida, item.producto.unidad], 1):
-            cell = ws3.cell(row=row_n, column=col_n, value=val)
-            cell.border = borde_fino()
-            if row_n % 2 == 0: cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
-        row_n += 1
-    auto_ancho(ws3)
 
     output = io.BytesIO()
     wb.save(output)
@@ -267,6 +235,7 @@ def comparativo():
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True,
                      download_name=f'ANCO_Comparativo_{meses_es[mes]}_{año}.xlsx')
+
 
 # ── HISTORIAL SALIDAS ────────────────────────────────────────────────────────
 @export_bp.route('/salidas')
