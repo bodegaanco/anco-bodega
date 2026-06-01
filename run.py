@@ -190,4 +190,6 @@ if __name__ == '__main__':
 # Para Railway/producción — crea tablas y carga datos al iniciar
 with app.app_context():
     db.create_all()
-    seed()
+    from app.models import Usuario
+    if Usuario.query.count() == 0:
+        seed()

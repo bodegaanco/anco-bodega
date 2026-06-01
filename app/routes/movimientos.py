@@ -36,7 +36,7 @@ def nueva_salida():
     db.session.flush()
 
     for pid, cant in zip(producto_ids, cantidades):
-        if pid and cant and float(cant) > 0:
+        if pid and cant is not None and cant != "" and float(cant) >= 0:
             producto = Producto.query.get(pid)
             if not producto:
                 continue
@@ -112,7 +112,7 @@ def nueva_rendicion():
     db.session.flush()
 
     for pid, cant in zip(producto_ids, cantidades):
-        if pid and cant and float(cant) > 0:
+        if pid and cant is not None and cant != "" and float(cant) >= 0:
             cantidad = float(cant)
             # NO tocar stock — OT es solo para revision y comparacion
             item = RendicionItem(
