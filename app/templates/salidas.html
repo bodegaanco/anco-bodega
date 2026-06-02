@@ -93,6 +93,16 @@
             <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
           </div>
         </div>
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Fecha de entrega</label>
+            <input type="date" name="fecha_entrega" class="form-input" id="fechaManual" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Hora</label>
+            <input type="time" name="hora_entrega" class="form-input" id="horaManual">
+          </div>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
           <label class="form-label" style="margin-bottom:0;white-space:nowrap">Productos</label>
           <input type="text" id="buscadorManual" class="form-input" placeholder="🔍 Filtrar..." style="flex:1" oninput="filtrarManual(this.value)">
@@ -168,6 +178,16 @@
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Notas (opcional)</label>
             <input type="text" name="notas" class="form-input" placeholder="Ej: Emergencia sector norte">
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Fecha de entrega</label>
+            <input type="date" name="fecha_entrega" class="form-input" id="fechaEscaner" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Hora</label>
+            <input type="time" name="hora_entrega" class="form-input" id="horaEscaner">
           </div>
         </div>
         <div style="background:#eef5ff;border-radius:8px;padding:14px;margin-bottom:14px">
@@ -556,9 +576,8 @@ function agregarProductoEscaner(pid) {
   renderListaEscaner();
   document.getElementById('sugerenciasEscaner').style.display = 'none';
   document.getElementById('inputEscaner').value = '';
-  // NO hacer focus en cantidad — permite seguir escaneando sin interrupciones
-  document.activeElement.blur(); // quitar foco de cualquier campo
-  toastEsc(`✅ ${prod.nombre} agregado — escanea el siguiente o ajusta cantidades`);
+  document.activeElement.blur();
+  toastEsc(`✅ ${prod.nombre} — escanea el siguiente o ajusta cantidades`);
 }
 
 function renderListaEscaner() {
@@ -648,6 +667,24 @@ function toastEsc(msg) {
   clearTimeout(t._t);
   t._t = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
+
+// Set today's date when modals open
+const _origOpenModal = window.openModal;
+window.openModal = function(id) {
+  _origOpenModal(id);
+  const hoy = new Date().toISOString().split('T')[0];
+  const hora = new Date().toTimeString().slice(0,5);
+  if (id === 'salidaManualModal') {
+    const f = document.getElementById('fechaManual');
+    const h = document.getElementById('horaManual');
+    if (f && !f.value) { f.value = hoy; h.value = hora; }
+  }
+  if (id === 'salidaEscanerModal') {
+    const f = document.getElementById('fechaEscaner');
+    const h = document.getElementById('horaEscaner');
+    if (f && !f.value) { f.value = hoy; h.value = hora; }
+  }
+};
 
 function openAnular(id) {
   document.getElementById('anularForm').action = `/movimientos/salidas/anular/${id}`;

@@ -108,6 +108,7 @@ class Salida(db.Model):
     id           = db.Column(db.Integer, primary_key=True)
     cuadrilla_id = db.Column(db.Integer, db.ForeignKey('cuadrillas.id'), nullable=False)
     notas        = db.Column(db.String(200))
+    tipo         = db.Column(db.String(30), default='salida')
     usuario_id   = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
     creado_en    = db.Column(db.DateTime, default=datetime.utcnow)
 

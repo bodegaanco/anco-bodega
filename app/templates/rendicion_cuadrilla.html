@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block title %}Rendición Cuadrilla — ANCO BODEGA{% endblock %}
+{% block page_title %}Rendición por Cuadrilla{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div class="toolbar">
+  <span style="color:var(--text-muted);font-size:13px">La cuadrilla te entrega materiales — descuenta de su stock teórico</span>
+  <button onclick="openModal('rendCuadModal')" class="btn btn-primary" style="margin-left:auto">+ Nueva Rendición</button>
+</div>
+
+<!-- HISTORIAL -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📋 Historial de Rendiciones</div>
+  </div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Fecha</th><th>Cuadrilla</th><th>Materiales</th><th>Items</th><th>Notas</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rendiciones %}
+      <tr>
+        <td style="color:var(--text-muted)">{{ r.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+        <td><strong>{{ r.cuadrilla.nombre }}</strong></td>
+        <td style="font-size:12px;color:var(--text-muted)">
+          {% for item in r.items %}{{ item.producto.descripcion|truncate(25) }} × {{ item.cantidad|num }}{{ ', ' if not loop.last }}{% endfor %}
+        </td>
+        <td><span class="badge badge-blue">{{ r.items|length }}</span></td>
+        <td style="color:var(--text-muted);font-size:12px">{{ r.notas or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Sin rendiciones registradas</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL NUEVA RENDICION -->
+<div class="modal-overlay" id="rendCuadModal">
+  <div class="modal" style="width:700px;max-width:98vw">
+    <div class="modal-header" style="background:#2a9d8f">
+      <div class="modal-title">📥 Nueva Rendición de Cuadrilla</div>
+      <button class="modal-close" onclick="closeModal('rendCuadModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('rendicion_cuadrilla.nueva') }}" id="rendCuadForm">
+      <div class="modal-body" style="padding:20px">
+
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Cuadrilla</label>
+            <select class="form-select" name="cuadrilla_id" required>
+              <option value="">Seleccionar...</option>
+              {% for c in cuadrillas %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Notas (opcional)</label>
+            <input type="text" name="notas" class="form-input" placeholder="Ej: Materiales no usados OT-148">
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Fecha</label>
+            <input type="date" name="fecha_entrega" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Hora</label>
+            <input type="time" name="hora_entrega" class="form-input" value="{{ now.strftime('%H:%M') }}">
+          </div>
+        </div>
+
+        <!-- BUSCADOR -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <label class="form-label" style="margin-bottom:0;white-space:nowrap">Materiales rendidos</label>
+          <input type="text" id="buscadorRC" class="form-input" placeholder="🔍 Filtrar productos..." style="flex:1" oninput="filtrarRC(this.value)">
+          <button type="button" onclick="desmarcarRC()" class="btn btn-outline btn-sm">Limpiar</button>
+        </div>
+
+        <div id="contadorRC" style="font-size:12px;color:#2a9d8f;font-weight:600;margin-bottom:8px;display:none"></div>
+
+        <div style="max-height:340px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;background:#f8fafc;z-index:1">
+              <tr>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:36px;text-align:center">✓</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in productos_select %}
+              <tr class="rc-row" data-nombre="{{ p.descripcion|lower }} {{ p.codigo|lower }}" style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;text-align:center">
+                  <input type="checkbox" class="chk-rc" data-pid="{{ p.id }}"
+                    style="width:16px;height:16px;cursor:pointer;accent-color:#2a9d8f"
+                    onchange="toggleRC(this)">
+                </td>
+                <td style="padding:8px 12px">
+                  <div style="font-size:13px;font-weight:600">{{ p.descripcion }}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">{{ p.codigo }} · {{ p.unidad }}</div>
+                </td>
+                <td style="padding:6px 12px;text-align:center">
+                  <input type="number" class="form-input cant-rc" data-pid="{{ p.id }}"
+                    placeholder="0" min="0.01" step="0.01"
+                    style="text-align:center;padding:5px 6px;font-size:13px;display:none"
+                    oninput="actualizarRC()">
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div id="hiddenRC"></div>
+        <div class="info-box" style="margin-top:10px;background:#e8f5f3;color:#2a9d8f">
+          💡 Registra los materiales que la cuadrilla te devuelve o rinde. Se descuentan de su stock teórico.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenRC"></div>
+        <button type="button" class="btn btn-outline" onclick="closeModal('rendCuadModal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f" onclick="return prepararRC()">✅ Registrar Rendición</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function filtrarRC(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.rc-row').forEach(r => { r.style.display = r.dataset.nombre.includes(q) ? '' : 'none'; });
+}
+function toggleRC(chk) {
+  const inp = document.querySelector(`.cant-rc[data-pid="${chk.dataset.pid}"]`);
+  if (chk.checked) { inp.style.display='block'; inp.value=1; inp.focus(); chk.closest('tr').style.background='#e8f5f3'; }
+  else { inp.style.display='none'; inp.value=''; chk.closest('tr').style.background=''; }
+  actualizarRC();
+}
+function actualizarRC() {
+  const sel = document.querySelectorAll('.chk-rc:checked').length;
+  const cnt = document.getElementById('contadorRC');
+  cnt.style.display = sel > 0 ? 'block' : 'none';
+  cnt.textContent = `${sel} producto(s) seleccionado(s)`;
+  document.getElementById('resumenRC').textContent = sel > 0 ? `${sel} productos` : '';
+}
+function desmarcarRC() {
+  document.querySelectorAll('.chk-rc:checked').forEach(chk => { chk.checked=false; toggleRC(chk); });
+  document.getElementById('buscadorRC').value=''; filtrarRC('');
+}
+function prepararRC() {
+  const sels = document.querySelectorAll('.chk-rc:checked');
+  if (sels.length === 0) { alert('Selecciona al menos un producto.'); return false; }
+  const cont = document.getElementById('hiddenRC'); cont.innerHTML='';
+  let ok = true;
+  sels.forEach(chk => {
+    const cant = parseFloat(document.querySelector(`.cant-rc[data-pid="${chk.dataset.pid}"]`).value);
+    if (!cant || cant <= 0) { ok=false; return; }
+    const ip=document.createElement('input'); ip.type='hidden'; ip.name='producto_id[]'; ip.value=chk.dataset.pid; cont.appendChild(ip);
+    const ic=document.createElement('input'); ic.type='hidden'; ic.name='cantidad[]'; ic.value=cant; cont.appendChild(ic);
+  });
+  if (!ok) { alert('Ingresa cantidad válida para todos los productos.'); return false; }
+  return true;
+}
+</script>
+{% endblock %}

@@ -106,19 +106,12 @@
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             {% if not r.anulada %}
-              {% if r.estado == 'pendiente' %}
-                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-primary btn-sm">🔍 Revisar</button>
-                <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
-              {% elif r.estado == 'diferencia' %}
-                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-warning btn-sm">🔍 Re-revisar</button>
-                <button onclick="openEditar({{ r.id }}, '{{ r.numero_ot }}', {{ r.cuadrilla_id }})" class="btn btn-outline btn-sm">✏️ Editar</button>
-                <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
-              {% elif r.estado == 'ok' %}
-                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn btn-outline btn-sm">Ver revisión</button>
+              {% if not r.anulada %}
+                <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn {{ 'btn-primary' if r.estado == 'pendiente' else ('btn-warning' if r.estado == 'diferencia' else 'btn-outline') }} btn-sm">
+                  {{ '🔍 Revisar' if r.estado == 'pendiente' else ('🔍 Re-revisar' if r.estado == 'diferencia' else '👁 Ver revisión') }}
+                </button>
                 <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
               {% endif %}
-            {% endif %}
-            <button onclick="verOT({{ r.id }})" class="btn btn-outline btn-sm">Ver</button>
           </div>
         </td>
       </tr>

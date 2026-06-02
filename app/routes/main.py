@@ -69,6 +69,7 @@ def run_migrate_float():
         ("inventario_items.diferencia", "ALTER TABLE inventario_items ALTER COLUMN diferencia TYPE FLOAT USING diferencia::float"),
         ("inventario_items.stock_sistema", "ALTER TABLE inventario_items ALTER COLUMN stock_sistema TYPE FLOAT USING stock_sistema::float"),
         ("inventario_items.stock_real", "ALTER TABLE inventario_items ALTER COLUMN stock_real TYPE FLOAT USING stock_real::float"),
+        ("salidas.tipo", "ALTER TABLE salidas ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'salida'"),
     ]
     for nombre, sql in queries:
         try:

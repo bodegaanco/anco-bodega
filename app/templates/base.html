@@ -175,6 +175,7 @@
     <a class="nav-item {% if request.endpoint == 'movimientos.salidas' %}active{% endif %}" href="{{ url_for('movimientos.salidas') }}"><span class="icon">📤</span> Salidas</a>
     <a class="nav-item {% if request.endpoint == 'movimientos.rendiciones' %}active{% endif %}" href="{{ url_for('movimientos.rendiciones') }}"><span class="icon">📋</span> Rendiciones (OT)</a>
     <a class="nav-item {% if request.endpoint == 'movimientos.historial' %}active{% endif %}" href="{{ url_for('movimientos.historial') }}"><span class="icon">🕓</span> Historial Entregas</a>
+    <a class="nav-item {% if 'rendicion_cuadrilla' in request.endpoint %}active{% endif %}" href="{{ url_for('rendicion_cuadrilla.index') }}"><span class="icon">📥</span> Rendición Cuadrilla</a>
     <div class="nav-label">Gestión</div>
     <a class="nav-item {% if 'inventario' in request.endpoint %}active{% endif %}" href="{{ url_for('inventario.index') }}"><span class="icon">🔍</span> Inventarios</a>
     <a class="nav-item {% if 'maquinarias' in request.endpoint %}active{% endif %}" href="{{ url_for('maquinarias.index') }}"><span class="icon">🔧</span> Maquinarias</a>

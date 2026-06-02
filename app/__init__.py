@@ -66,6 +66,8 @@ def create_app():
     app.register_blueprint(export_bp)
     app.register_blueprint(analisis_bp)
     app.register_blueprint(favoritos_bp)
+    from app.routes.rendicion_cuadrilla import rendicion_cuadrilla_bp
+    app.register_blueprint(rendicion_cuadrilla_bp)
 
     return app
 
