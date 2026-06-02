@@ -1,3 +1,5 @@
+print("RUN.PY CARGADO")
+
 from app import create_app, db
 from app.models import Usuario, Producto
 
