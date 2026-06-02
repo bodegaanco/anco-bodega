@@ -334,96 +334,6 @@
   </div>
 </div>
 
-<script>
-  function openRevisarCompleto(id, ot) {
-    const d = otData[id];
-    document.getElementById('revisar-ot-num').textContent = ot;
-    document.getElementById('revisarCompletoForm').action = `/movimientos/rendiciones/revisar_completo/${id}`;
-    document.getElementById('revisarHeader').style.background =
-      d.estado === 'ok' ? '#2a9d8f' : d.estado === 'diferencia' ? '#e07020' : '#1a2b3c';
-
-    // Info OT
-    document.getElementById('revisar-info').innerHTML = `
-      <span>📅 <strong>${d.fecha}</strong></span>
-      <span style="margin-left:16px">🚚 <strong>${d.cuadrilla}</strong></span>
-      ${d.revisada_por ? `<span style="margin-left:16px;color:var(--text-muted)">Revisado por: ${d.revisada_por}</span>` : ''}`;
-
-    // Notas previas
-    document.getElementById('revisar-notas').value = d.notas || '';
-
-    // Radio previo
-    if (d.estado === 'ok') document.querySelector('input[name="resultado"][value="ok"]').checked = true;
-    else if (d.estado === 'diferencia') document.querySelector('input[name="resultado"][value="diferencia"]').checked = true;
-    else { document.querySelector('input[name="resultado"][value="ok"]').checked = false;
-           document.querySelector('input[name="resultado"][value="diferencia"]').checked = false; }
-
-    // Tabla comparacion
-    const tbody = document.getElementById('revisar-tbody');
-    tbody.innerHTML = d.items.map((i, idx) => `
-      <tr id="rrev-${idx}" style="border-bottom:1px solid var(--border);${idx%2===0?'':'background:#fafcff'}">
-        <td style="padding:10px 16px">
-          <div style="font-size:13px;font-weight:600">${i.desc}</div>
-          <div style="font-size:11px;color:var(--text-muted);font-family:monospace">${i.cod} · ${i.unidad}</div>
-        </td>
-        <td style="padding:10px 16px;text-align:center">
-          <span style="font-size:20px;font-weight:800;color:var(--primary)">${i.cant}</span>
-          <div style="font-size:10px;color:var(--text-muted)">${i.unidad}</div>
-          <input type="hidden" name="comp_producto_id[]" value="${i.id}">
-        </td>
-        <td style="padding:8px 16px;text-align:center">
-          <input type="number" id="otro-rev-${idx}" name="comp_cantidad_otro[]"
-            value="${i.comp_otro || ''}" min="0" step="0.01" placeholder="—"
-            style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:90px;border:2px solid var(--border);border-radius:6px"
-            oninput="calcRevDif(${idx}, ${i.cant}, this.value)"
-            onfocus="this.select()">
-        </td>
-        <td style="padding:10px 16px;text-align:center" id="drev-${idx}">
-          <span style="color:var(--text-muted)">—</span>
-        </td>
-      </tr>`).join('');
-
-    // Recalcular diferencias existentes
-    d.items.forEach((i, idx) => {
-      if (i.comp_otro) calcRevDif(idx, i.cant, i.comp_otro);
-    });
-
-    openModal('revisarCompletoModal');
-  }
-
-  function openAnularOT(id) {
-    document.getElementById('anularOTForm').action = `/movimientos/rendiciones/anular/${id}`;
-    openModal('anularOTModal');
-  }
-
-  function calcRevDif(idx, nuestro, otroVal) {
-    const difEl = document.getElementById(`drev-${idx}`);
-    const row   = document.getElementById(`rrev-${idx}`);
-    if (!difEl) return;
-    if (otroVal === '' || otroVal === null) {
-      difEl.innerHTML = '<span style="color:var(--text-muted)">—</span>';
-      row.style.background = idx%2===0 ? '' : '#fafcff';
-      return;
-    }
-    const otro = parseFloat(otroVal);
-    const dif  = Math.round((nuestro - otro) * 1000) / 1000;
-    if (dif === 0) {
-      difEl.innerHTML = '<span style="font-size:16px;font-weight:800;color:var(--success)">✓ OK</span>';
-      row.style.background = '#f0fdf8';
-    } else if (dif > 0) {
-      difEl.innerHTML = `<span style="font-size:16px;font-weight:800;color:#c67c00">▲ +${dif}</span>`;
-      row.style.background = '#fff8e1';
-    } else {
-      difEl.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--danger)">▼ ${dif}</span>`;
-      row.style.background = '#ffeaea';
-    }
-  }
-
-  function validarRevisar() {
-    const resultado = document.querySelector('input[name="resultado"]:checked');
-    if (!resultado) { alert('Selecciona si la OT está OK o tiene diferencias.'); return false; }
-    return true;
-  }
-</script>
 
 {% endblock %}
 
@@ -743,10 +653,8 @@
     document.getElementById('anularOTForm').action = `/movimientos/rendiciones/anular/${id}`;
     openModal('anularOTModal');
   }
-</script>
-{% endblock %}
 
-<script>
+
 // ── ESCÁNER EYOYO — RENDICIONES OT ───────────────────────────────
 let bufferOT = '', timerOT = null;
 
@@ -797,4 +705,6 @@ function toastEscanerOT(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
+
 </script>
+{% endblock %}
