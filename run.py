@@ -5,6 +5,8 @@ from app.models import Usuario, Producto
 
 app = create_app()
 
+print("2 - despues create_app")
+
 def seed():
     """Carga datos iniciales: usuarios y productos reales de ANCO"""
     with app.app_context():
