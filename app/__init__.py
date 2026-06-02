@@ -7,6 +7,37 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 
 def create_app():
+
+
+        print("3 - entrando create_app")
+
+    app = Flask(__name__)
+
+    print("4 - flask creado")
+
+    db.init_app(app)
+    print("5 - db init")
+
+    login_manager.init_app(app)
+    print("6 - login init")
+
+    from app.routes.auth import auth_bp
+    print("7 - auth importado")
+
+    from app.routes.main import main_bp
+    print("8 - main importado")
+
+    from app.routes.stock import stock_bp
+    print("9 - stock importado")
+
+    # resto de imports...
+
+    print("10 - registrando blueprints")
+
+
+
+
+
     app = Flask(__name__)
 
     # Filtro para mostrar numeros: 1.5 como 1.5, 2.0 como 2, 1.500 como 1.5
