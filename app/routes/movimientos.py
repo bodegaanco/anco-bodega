@@ -364,33 +364,37 @@ def revisar_completo(id):
     notas_revision = request.form.get('notas_revision', '')
     producto_ids   = request.form.getlist('comp_producto_id[]')
     cantidades_otro = request.form.getlist('comp_cantidad_otro[]')
+    print(f"DEBUG revisar_completo id={id} resultado={resultado} pids={producto_ids} cantidades={cantidades_otro} form_keys={list(request.form.keys())}")
 
     # Guardar revision
-    rendicion.estado        = resultado
-    rendicion.revisada_por  = current_user.nombre
+    rendicion.estado         = resultado
+    rendicion.revisada_por   = current_user.nombre
     rendicion.notas_revision = notas_revision
 
-    # Borrar comparacion anterior si existe
-    ComparacionOTItem.query.filter_by(rendicion_id=id).delete()
+    # Borrar comparacion anterior
+    try:
+        ComparacionOTItem.query.filter_by(rendicion_id=id).delete()
+    except:
+        db.session.rollback()
 
-    # Guardar comparacion
-    for pid, cant_otro in zip(producto_ids, cantidades_otro):
-        if not pid:
-            continue
-        cant_otro = float(cant_otro) if cant_otro else 0
-        item_ot = next((i for i in rendicion.items if str(i.producto_id) == str(pid)), None)
-        if not item_ot:
-            continue
-        cant_anco = item_ot.cantidad_usada
-        dif = cant_otro - cant_anco  # negativo = perdida (ellos dicen menos que nosotros)
-        comp = ComparacionOTItem(
-            rendicion_id=id,
-            producto_id=int(pid),
-            cantidad_anco=cant_anco,
-            cantidad_otro=cant_otro,
-            diferencia=dif
-        )
-        db.session.add(comp)
+    # Guardar comparacion - usar items de la rendicion directamente
+    try:
+        for idx, item_ot in enumerate(rendicion.items):
+            cant_otro_str = cantidades_otro[idx] if idx < len(cantidades_otro) else ''
+            cant_otro = float(cant_otro_str) if cant_otro_str and cant_otro_str.strip() else 0
+            cant_anco = item_ot.cantidad_usada
+            dif = cant_otro - cant_anco
+            comp = ComparacionOTItem(
+                rendicion_id=id,
+                producto_id=item_ot.producto_id,
+                cantidad_anco=cant_anco,
+                cantidad_otro=cant_otro,
+                diferencia=dif
+            )
+            db.session.add(comp)
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error guardando comparacion: {e}")
 
     db.session.commit()
     if resultado == 'ok':
