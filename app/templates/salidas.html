@@ -556,11 +556,9 @@ function agregarProductoEscaner(pid) {
   renderListaEscaner();
   document.getElementById('sugerenciasEscaner').style.display = 'none';
   document.getElementById('inputEscaner').value = '';
-  setTimeout(() => {
-    const inp = document.getElementById(`cant-esc-${pid}`);
-    if (inp) { inp.focus(); inp.select(); }
-  }, 50);
-  toastEsc(`✅ ${prod.nombre} agregado`);
+  // NO hacer focus en cantidad — permite seguir escaneando sin interrupciones
+  document.activeElement.blur(); // quitar foco de cualquier campo
+  toastEsc(`✅ ${prod.nombre} agregado — escanea el siguiente o ajusta cantidades`);
 }
 
 function renderListaEscaner() {
