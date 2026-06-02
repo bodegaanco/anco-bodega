@@ -106,12 +106,11 @@
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             {% if not r.anulada %}
-              {% if not r.anulada %}
                 <button onclick="openRevisarCompleto({{ r.id }}, '{{ r.numero_ot }}')" class="btn {{ 'btn-primary' if r.estado == 'pendiente' else ('btn-warning' if r.estado == 'diferencia' else 'btn-outline') }} btn-sm">
                   {{ '🔍 Revisar' if r.estado == 'pendiente' else ('🔍 Re-revisar' if r.estado == 'diferencia' else '👁 Ver revisión') }}
                 </button>
                 <button onclick="openAnularOT({{ r.id }})" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)">Anular</button>
-              {% endif %}
+            {% endif %}
           </div>
         </td>
       </tr>
