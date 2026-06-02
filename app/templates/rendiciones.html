@@ -449,7 +449,7 @@
         cant: {{ i.cantidad_usada }},
         unidad: '{{ i.producto.unidad }}',
         cod: '{{ i.producto.codigo }}',
-        comp_otro: {{ r.comparacion|selectattr('producto_id','equalto',i.producto_id)|map(attribute='cantidad_otro')|first|default(0) }}
+        comp_otro: 0
       }{{ ',' if not loop.last }}{% endfor %}]
     }{{ ',' if not loop.last }}
     {% endfor %}
