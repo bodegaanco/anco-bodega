@@ -28,17 +28,24 @@ try:
 
         print("5 - models importados")
 
-        # prueba de conexión
-        total_productos = Producto.query.count()
+        from sqlalchemy import text
 
-        print(f"6 - conexion DB OK")
-        print(f"7 - productos encontrados: {total_productos}")
+        print("6 - antes SELECT 1")
+
+        resultado = db.session.execute(text("SELECT 1"))
+
+        print("7 - despues SELECT 1")
+
+        print("RESULTADO =", resultado.scalar())
+
+        print("8 - prueba final OK")
 
 except Exception as e:
     print("ERROR EN APP_CONTEXT:")
+    print(type(e).__name__)
     print(str(e))
 
-print("8 - fin run.py")
+print("9 - fin run.py")
 
 
 def seed():
@@ -61,12 +68,14 @@ def seed():
 
 
 if __name__ == "__main__":
-    print("9 - modo local")
+
+    print("10 - modo local")
 
     try:
         seed()
     except Exception as e:
         print("ERROR SEED:")
+        print(type(e).__name__)
         print(str(e))
 
     app.run(
