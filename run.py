@@ -188,6 +188,6 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 # Para Railway/producción — crea tablas y carga datos al iniciar
-with app.app_context():
-    db.create_all()
-    seed()
+#with app.app_context():
+ #   db.create_all()
+ #   seed()
