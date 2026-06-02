@@ -382,7 +382,7 @@ def revisar_completo(id):
         if not item_ot:
             continue
         cant_anco = item_ot.cantidad_usada
-        dif = cant_anco - cant_otro
+        dif = cant_otro - cant_anco  # negativo = perdida (ellos dicen menos que nosotros)
         comp = ComparacionOTItem(
             rendicion_id=id,
             producto_id=int(pid),

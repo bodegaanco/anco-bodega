@@ -70,6 +70,15 @@ def run_migrate_float():
         ("inventario_items.stock_sistema", "ALTER TABLE inventario_items ALTER COLUMN stock_sistema TYPE FLOAT USING stock_sistema::float"),
         ("inventario_items.stock_real", "ALTER TABLE inventario_items ALTER COLUMN stock_real TYPE FLOAT USING stock_real::float"),
         ("salidas.tipo", "ALTER TABLE salidas ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'salida'"),
+        ("rendiciones.notas_revision", "ALTER TABLE rendiciones ADD COLUMN IF NOT EXISTS notas_revision VARCHAR(500)"),
+        ("comparacion_ot_items", """CREATE TABLE IF NOT EXISTS comparacion_ot_items (
+            id SERIAL PRIMARY KEY,
+            rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
+            producto_id INTEGER NOT NULL REFERENCES productos(id),
+            cantidad_anco FLOAT NOT NULL,
+            cantidad_otro FLOAT DEFAULT 0,
+            diferencia FLOAT DEFAULT 0
+        )"""),
     ]
     for nombre, sql in queries:
         try:

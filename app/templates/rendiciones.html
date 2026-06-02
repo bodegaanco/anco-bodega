@@ -360,7 +360,7 @@ function calcDif(idx, nuestro, otroVal) {
     row.style.background = idx%2===0 ? '#fff' : '#fafcff';
     return;
   }
-  const dif = Math.round((nuestro - parseFloat(otroVal)) * 1000) / 1000;
+  const dif = Math.round((parseFloat(otroVal) - nuestro) * 1000) / 1000;
   if (dif === 0) {
     difEl.innerHTML = '<span style="font-size:16px;font-weight:800;color:var(--success)">✓ OK</span>';
     row.style.background = '#f0fdf8';
