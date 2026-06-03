@@ -364,7 +364,6 @@ def revisar_completo(id):
     notas_revision = request.form.get('notas_revision', '')
     producto_ids   = request.form.getlist('comp_producto_id[]')
     cantidades_otro = request.form.getlist('comp_cantidad_otro[]')
-    print(f"DEBUG revisar_completo id={id} resultado={resultado} pids={producto_ids} cantidades={cantidades_otro} form_keys={list(request.form.keys())}")
 
     # Guardar revision
     rendicion.estado         = resultado
@@ -395,7 +394,6 @@ def revisar_completo(id):
         db.session.add(comp)
 
     db.session.commit()
-    print(f"DEBUG commit ok")
     if resultado == 'ok':
         flash(f'✅ OT {rendicion.numero_ot} confirmada OK', 'success')
     else:

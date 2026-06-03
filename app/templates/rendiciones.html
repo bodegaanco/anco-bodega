@@ -128,7 +128,7 @@
   "revisada_por": {{ (r.revisada_por or '') | tojson }},
   "notas": {{ (r.notas_revision or '') | tojson }},
   "items": [{% for i in r.items %}
-    {"id": {{ i.producto_id }}, "desc": {{ i.producto.descripcion | tojson }}, "cant": {{ i.cantidad_usada }}, "unidad": {{ i.producto.unidad | tojson }}, "cod": {{ i.producto.codigo | tojson }}}{{ ',' if not loop.last }}
+    {"id": {{ i.producto_id }}, "desc": {{ i.producto.descripcion | tojson }}, "cant": {{ i.cantidad_usada }}, "unidad": {{ i.producto.unidad | tojson }}, "cod": {{ i.producto.codigo | tojson }}, "comp_otro": {{ r.comparacion | selectattr("producto_id","equalto",i.producto_id) | map(attribute="cantidad_otro") | first | default(0) }} }{{ ',' if not loop.last }}
   {% endfor %}]
 }
 </script>
