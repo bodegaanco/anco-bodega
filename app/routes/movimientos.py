@@ -383,7 +383,6 @@ def revisar_completo(id):
             continue
         cant_anco = item_ot.cantidad_usada
         dif = cant_otro - cant_anco
-        print(f"DEBUG guardando pid={pid} anco={cant_anco} otro={cant_otro} dif={dif}")
         comp = ComparacionOTItem(
             rendicion_id=id,
             producto_id=int(pid),
