@@ -117,6 +117,8 @@
 {{ rendiciones | map(attribute='id') | list | tojson }}
 </script>
 {% for r in rendiciones %}
+{% set comp_dict = {} %}
+{% for c in r.comparacion %}{% if comp_dict.update({c.producto_id: c.cantidad_otro}) %}{% endif %}{% endfor %}
 <script id="ot-{{ r.id }}" type="application/json">
 {
   "id": {{ r.id }},
@@ -128,7 +130,7 @@
   "revisada_por": {{ (r.revisada_por or '') | tojson }},
   "notas": {{ (r.notas_revision or '') | tojson }},
   "items": [{% for i in r.items %}
-    {"id": {{ i.producto_id }}, "desc": {{ i.producto.descripcion | tojson }}, "cant": {{ i.cantidad_usada }}, "unidad": {{ i.producto.unidad | tojson }}, "cod": {{ i.producto.codigo | tojson }}, "comp_otro": {{ r.comparacion | selectattr("producto_id","equalto",i.producto_id) | map(attribute="cantidad_otro") | first | default(0) }} }{{ ',' if not loop.last }}
+    {"id": {{ i.producto_id }}, "desc": {{ i.producto.descripcion | tojson }}, "cant": {{ i.cantidad_usada }}, "unidad": {{ i.producto.unidad | tojson }}, "cod": {{ i.producto.codigo | tojson }}, "comp_otro": {{ comp_dict.get(i.producto_id, 0) }} }{{ ',' if not loop.last }}
   {% endfor %}]
 }
 </script>
@@ -347,6 +349,17 @@ function abrirRevisar(id) {
         <span style="color:var(--text-muted)">—</span>
       </td>
     </tr>`).join('');
+
+  // Mostrar valores guardados y calcular diferencias
+  d.items.forEach((i, idx) => {
+    if (i.comp_otro && i.comp_otro !== 0) {
+      const inp = document.getElementById(`otro-${idx}`);
+      if (inp) {
+        inp.value = i.comp_otro;
+        calcDif(idx, i.cant, i.comp_otro);
+      }
+    }
+  });
 
   openModal('revisarModal');
 }
