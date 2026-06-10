@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Análisis — ANCO BODEGA{% endblock %}
-{% block page_title %}Análisis de Consumo{% endblock %}
+{% block page_title %}Análisis y Reportes{% endblock %}
 
 {% block content %}
 
@@ -17,7 +17,7 @@
         <input type="date" name="hasta" class="form-input" value="{{ hasta_str }}" style="width:160px">
       </div>
       <div style="flex:1;min-width:200px">
-        <label class="form-label">Filtrar por producto (opcional)</label>
+        <label class="form-label">Producto específico (opcional)</label>
         <select name="producto_id" class="form-select">
           <option value="">Todos los productos</option>
           {% for p in productos_lista %}
@@ -27,6 +27,7 @@
       </div>
       <button type="submit" class="btn btn-primary">Analizar</button>
       <a href="{{ url_for('analisis.index') }}" class="btn btn-outline">Resetear</a>
+      <a href="#" onclick="descargarExcel()" class="btn btn-outline" style="color:#2a9d8f;border-color:#2a9d8f">📊 Exportar Excel</a>
     </form>
   </div>
 </div>
@@ -39,85 +40,113 @@
     <div class="kpi-sub">días analizados</div>
   </div>
   <div class="kpi-card warning">
-    <div class="kpi-label">Ítems Consumidos</div>
-    <div class="kpi-value">{{ total_items }}</div>
-    <div class="kpi-sub">unidades rendidas en OT</div>
+    <div class="kpi-label">Entregas (Salidas)</div>
+    <div class="kpi-value">{{ total_salidas }}</div>
+    <div class="kpi-sub">{{ total_entregado|num }} unidades entregadas</div>
   </div>
   <div class="kpi-card success">
     <div class="kpi-label">OT Registradas</div>
     <div class="kpi-value">{{ total_ots }}</div>
-    <div class="kpi-sub">órdenes de trabajo</div>
+    <div class="kpi-sub">{{ total_utilizado|num }} unidades usadas</div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-label">Salidas a Cuadrillas</div>
-    <div class="kpi-value">{{ total_salidas }}</div>
-    <div class="kpi-sub">entregas de bodega</div>
+  <div class="kpi-card {% if total_entregado > total_utilizado %}danger{% else %}success{% endif %}">
+    <div class="kpi-label">Diferencia Total</div>
+    <div class="kpi-value">{{ (total_entregado - total_utilizado)|num }}</div>
+    <div class="kpi-sub">unidades sin rendir</div>
   </div>
 </div>
 
-<!-- GRÁFICOS FILA 1 -->
-<div class="grid-2" style="margin-bottom:20px">
+<!-- FILA 1: Evolución mensual + Consumo por cuadrilla -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
 
+  <!-- Evolución mensual -->
   <div class="card">
-    <div class="card-header">
-      <div class="card-title">📦 Top 10 Productos Más Consumidos</div>
-      <span style="font-size:11px;color:var(--text-muted)">Por rendiciones OT</span>
-    </div>
-    <div class="card-body">
-      {% if top_productos %}
-      <canvas id="chartProductos" height="280"></canvas>
-      {% else %}
-      <div style="padding:40px;text-align:center;color:var(--text-muted)">Sin datos en este período</div>
-      {% endif %}
+    <div class="card-header"><div class="card-title">📈 Evolución Mensual — Entregado vs Utilizado</div></div>
+    <div class="card-body" style="padding:16px">
+      <canvas id="chartEvolucion" height="200"></canvas>
     </div>
   </div>
 
+  <!-- Consumo por cuadrilla -->
   <div class="card">
-    <div class="card-header">
-      <div class="card-title">🚚 Consumo por Cuadrilla</div>
-      <span style="font-size:11px;color:var(--text-muted)">Total ítems usados</span>
-    </div>
-    <div class="card-body">
+    <div class="card-header"><div class="card-title">🚚 Entregas por Cuadrilla</div></div>
+    <div class="card-body" style="padding:16px">
       {% if consumo_cuadrilla %}
-      <canvas id="chartCuadrillas" height="280"></canvas>
+      <canvas id="chartCuadrilla" height="200"></canvas>
       {% else %}
-      <div style="padding:40px;text-align:center;color:var(--text-muted)">Sin datos en este período</div>
+      <div style="padding:40px;text-align:center;color:var(--text-muted)">Sin datos en el período</div>
       {% endif %}
     </div>
   </div>
 
 </div>
 
-<!-- TENDENCIA MENSUAL -->
-<div class="card" style="margin-bottom:20px">
-  <div class="card-header">
-    <div class="card-title">📈 Tendencia de Consumo — Últimos 6 Meses</div>
-    <span style="font-size:11px;color:var(--text-muted)">Total ítems rendidos por mes</span>
-  </div>
-  <div class="card-body">
-    <canvas id="chartTendencia" height="110"></canvas>
-  </div>
-</div>
-
-<!-- TABLAS -->
-<div class="grid-2">
+<!-- FILA 2: Top productos entregados + Top productos usados -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
 
   <div class="card">
-    <div class="card-header"><div class="card-title">📋 Detalle — Top Productos</div></div>
+    <div class="card-header"><div class="card-title">📦 Top 10 — Más Entregados (Salidas)</div></div>
     <table class="tbl">
-      <thead><tr><th>#</th><th>Producto</th><th>Unidad</th><th>Total consumido</th></tr></thead>
+      <thead><tr><th>#</th><th>Producto</th><th style="text-align:right">Total</th></tr></thead>
       <tbody>
-        {% for desc, unidad, total in top_productos %}
+        {% for p in top_entregados %}
         <tr>
-          <td style="color:var(--text-muted);font-weight:700;width:30px">{{ loop.index }}</td>
-          <td style="font-size:12px">{{ desc }}</td>
-          <td><span class="badge badge-gray">{{ unidad }}</span></td>
+          <td style="color:var(--text-muted);font-weight:700">{{ loop.index }}</td>
           <td>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="progress-bar" style="width:60px">
-                <div class="progress-fill" style="width:{{ [(total / (top_productos[0][2] or 1)) * 100, 100]|min }}%;background:var(--primary)"></div>
+            <div style="font-size:13px;font-weight:600">{{ p.descripcion }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ p.unidad }}</div>
+          </td>
+          <td style="text-align:right"><span class="badge badge-blue">{{ p.total|num }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">🔧 Top 10 — Más Usados (OT Rendiciones)</div></div>
+    <table class="tbl">
+      <thead><tr><th>#</th><th>Producto</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>
+        {% for p in top_usados %}
+        <tr>
+          <td style="color:var(--text-muted);font-weight:700">{{ loop.index }}</td>
+          <td>
+            <div style="font-size:13px;font-weight:600">{{ p.descripcion }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ p.unidad }}</div>
+          </td>
+          <td style="text-align:right"><span class="badge badge-ok">{{ p.total|num }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- FILA 3: Eficiencia de rendición + Diferencias OT -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">📊 Eficiencia de Rendición por Cuadrilla</div></div>
+    <table class="tbl">
+      <thead><tr><th>Cuadrilla</th><th style="text-align:center">Salidas</th><th style="text-align:center">OTs</th><th style="text-align:center">Eficiencia</th></tr></thead>
+      <tbody>
+        {% for e in eficiencia %}
+        <tr>
+          <td style="font-weight:600">{{ e.nombre }}</td>
+          <td style="text-align:center">{{ e.salidas }}</td>
+          <td style="text-align:center">{{ e.rendidas }}</td>
+          <td style="text-align:center">
+            <div style="display:flex;align-items:center;gap:8px;justify-content:center">
+              <div style="flex:1;max-width:80px;height:8px;background:#f0f4f8;border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:{{ e.pct }}%;background:{{ '#2a9d8f' if e.pct >= 80 else ('#f4a261' if e.pct >= 50 else '#e63946') }};border-radius:4px"></div>
               </div>
-              <strong>{{ total }}</strong>
+              <span style="font-weight:700;font-size:13px;color:{{ '#2a9d8f' if e.pct >= 80 else ('#f4a261' if e.pct >= 50 else '#e63946') }}">{{ e.pct }}%</span>
             </div>
           </td>
         </tr>
@@ -129,27 +158,22 @@
   </div>
 
   <div class="card">
-    <div class="card-header"><div class="card-title">📋 Detalle — Consumo Cuadrillas</div></div>
+    <div class="card-header"><div class="card-title">⚠️ Diferencias OT vs Otro Sistema</div></div>
     <table class="tbl">
-      <thead><tr><th>Cuadrilla</th><th>Total</th><th>% del total</th></tr></thead>
+      <thead><tr><th>Cuadrilla</th><th style="text-align:center">Items</th><th style="text-align:right">Diferencia</th></tr></thead>
       <tbody>
-        {% set gran_total = consumo_cuadrilla | sum(attribute=1) %}
-        {% for nombre, total in consumo_cuadrilla %}
+        {% for d in dif_ot %}
         <tr>
-          <td><strong>{{ nombre }}</strong></td>
-          <td><strong>{{ total }}</strong></td>
-          <td>
-            {% set pct = ((total / gran_total) * 100) | round(1) if gran_total > 0 else 0 %}
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="progress-bar" style="width:60px">
-                <div class="progress-fill" style="width:{{ pct }}%;background:var(--warning)"></div>
-              </div>
-              <span>{{ pct }}%</span>
-            </div>
+          <td style="font-weight:600">{{ d.nombre }}</td>
+          <td style="text-align:center"><span class="badge badge-gray">{{ d.n_items }}</span></td>
+          <td style="text-align:right">
+            <span style="font-weight:800;font-size:14px;color:{{ '#e63946' if d.dif_total < 0 else ('#2a9d8f' if d.dif_total == 0 else '#f4a261') }}">
+              {{ '▼ ' if d.dif_total < 0 else ('✓ ' if d.dif_total == 0 else '▲ ') }}{{ d.dif_total|num }}
+            </span>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos</td></tr>
+        <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Sin comparaciones registradas</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -157,26 +181,59 @@
 
 </div>
 
-<!-- DETALLE PRODUCTO ESPECÍFICO -->
+<!-- ESTADO CUADRILLAS -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header"><div class="card-title">🚚 Estado Actual de Cuadrillas</div></div>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Cuadrilla</th>
+        <th style="text-align:center">Stock Teórico</th>
+        <th style="text-align:center">Productos</th>
+        <th style="text-align:center">Última Entrega</th>
+        <th style="text-align:center">Última OT</th>
+        <th style="text-align:center">OTs con diferencias</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in estado_cuadrillas %}
+      <tr>
+        <td style="font-weight:700">{{ c.nombre }}</td>
+        <td style="text-align:center"><span class="badge badge-blue" style="font-size:14px">{{ c.total_stock|num }}</span></td>
+        <td style="text-align:center">{{ c.n_productos }}</td>
+        <td style="text-align:center;color:var(--text-muted)">{{ c.ultima_salida }}</td>
+        <td style="text-align:center;color:var(--text-muted)">{{ c.ultima_ot }}</td>
+        <td style="text-align:center">
+          {% if c.ots_con_dif > 0 %}
+          <span class="badge badge-warning">⚠️ {{ c.ots_con_dif }}</span>
+          {% else %}
+          <span class="badge badge-ok">✓ OK</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DETALLE PRODUCTO -->
 {% if producto_sel %}
-<div class="card" style="margin-top:20px">
+<div class="card" style="margin-bottom:20px">
   <div class="card-header">
-    <div class="card-title">🔍 {{ producto_sel.descripcion }}</div>
-    <span style="font-size:11px;color:var(--text-muted)">Consumo por cuadrilla en el período</span>
+    <div class="card-title">🔍 Detalle: {{ producto_sel.descripcion }}</div>
+    <span style="font-size:12px;color:var(--text-muted)">Entregas por cuadrilla en el período</span>
   </div>
   <table class="tbl">
-    <thead><tr><th>Cuadrilla</th><th>OT donde se usó</th><th>Total consumido</th></tr></thead>
+    <thead><tr><th>Cuadrilla</th><th style="text-align:center">N° Entregas</th><th style="text-align:right">Total Entregado</th></tr></thead>
     <tbody>
-      {% for nombre, total, num_ot in detalle_producto %}
+      {% for d in detalle_producto %}
       <tr>
-        <td><strong>{{ nombre }}</strong></td>
-        <td><span class="badge badge-blue">{{ num_ot }} OT</span></td>
-        <td><strong>{{ total }} {{ producto_sel.unidad }}</strong></td>
+        <td style="font-weight:600">{{ d.nombre }}</td>
+        <td style="text-align:center">{{ d.num_salidas }}</td>
+        <td style="text-align:right"><span class="badge badge-blue">{{ d.entregado|num }} {{ producto_sel.unidad }}</span></td>
       </tr>
       {% else %}
-      <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">
-        Este producto no fue consumido en el período seleccionado
-      </td></tr>
+      <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos para este producto</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -186,83 +243,54 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-  Chart.defaults.font.family = "'Barlow', sans-serif";
-  Chart.defaults.font.size   = 12;
-  const PALETTE = ['#3E88D6','#2a9d8f','#f4a261','#e63946','#8ecae6','#219ebc','#023047','#ffb703','#fb8500','#6d6875'];
+const AZUL     = '#3E88D6';
+const VERDE    = '#2a9d8f';
+const NARANJA  = '#f4a261';
+const GRIS     = '#94a3b8';
 
-  {% if top_productos %}
-  new Chart(document.getElementById('chartProductos'), {
-    type: 'bar',
-    data: {
-      labels: {{ top_productos | map(attribute=0) | list | tojson }},
-      datasets: [{
-        label: 'Unidades consumidas',
-        data:  {{ top_productos | map(attribute=2) | list | tojson }},
-        backgroundColor: PALETTE,
-        borderRadius: 5,
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: '#f0f4f8' }, ticks: { color: '#6b8099' } },
-        y: { grid: { display: false }, ticks: { color: '#1a2b3c', font: { size: 11 } } }
-      }
-    }
-  });
-  {% endif %}
+// ── Evolución mensual ─────────────────────────────────────────
+new Chart(document.getElementById('chartEvolucion'), {
+  type: 'bar',
+  data: {
+    labels: {{ meses_labels | safe }},
+    datasets: [
+      { label: 'Entregado (Salidas)', data: {{ meses_entregado | safe }}, backgroundColor: AZUL, borderRadius: 4 },
+      { label: 'Utilizado (OT)',      data: {{ meses_usado | safe }},      backgroundColor: VERDE, borderRadius: 4 }
+    ]
+  },
+  options: {
+    responsive: true, plugins: { legend: { position: 'bottom' } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
 
-  {% if consumo_cuadrilla %}
-  new Chart(document.getElementById('chartCuadrillas'), {
-    type: 'bar',
-    data: {
-      labels: {{ consumo_cuadrilla | map(attribute=0) | list | tojson }},
-      datasets: [{
-        label: 'Total consumido',
-        data:  {{ consumo_cuadrilla | map(attribute=1) | list | tojson }},
-        backgroundColor: '#f4a261',
-        borderRadius: 5,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { grid: { color: '#f0f4f8' }, ticks: { color: '#6b8099' } },
-        x: { grid: { display: false }, ticks: { color: '#1a2b3c' } }
-      }
-    }
-  });
-  {% endif %}
+// ── Consumo por cuadrilla ─────────────────────────────────────
+{% if consumo_cuadrilla %}
+new Chart(document.getElementById('chartCuadrilla'), {
+  type: 'bar',
+  data: {
+    labels: {{ consumo_cuadrilla | map(attribute='nombre') | list | tojson }},
+    datasets: [{
+      label: 'Unidades entregadas',
+      data: {{ consumo_cuadrilla | map(attribute='entregado') | list | tojson }},
+      backgroundColor: AZUL, borderRadius: 4
+    }]
+  },
+  options: {
+    indexAxis: 'y', responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true } }
+  }
+});
+{% endif %}
 
-  new Chart(document.getElementById('chartTendencia'), {
-    type: 'line',
-    data: {
-      labels:   {{ meses_labels | safe }},
-      datasets: [{
-        label: 'Ítems consumidos',
-        data:  {{ meses_data | safe }},
-        borderColor:     '#3E88D6',
-        backgroundColor: 'rgba(62,136,214,0.08)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#3E88D6',
-        pointRadius: 5,
-        fill: true,
-        tension: 0.3
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { grid: { color: '#f0f4f8' }, ticks: { color: '#6b8099' }, beginAtZero: true },
-        x: { grid: { display: false }, ticks: { color: '#1a2b3c' } }
-      }
-    }
-  });
+function descargarExcel() {
+  const desde = document.querySelector('input[name="desde"]').value;
+  const hasta  = document.querySelector('input[name="hasta"]').value;
+  window.location.href = `/export/entregado_rendido?desde=${desde}&hasta=${hasta}`;
+}
 </script>
 {% endblock %}

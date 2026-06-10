@@ -343,8 +343,14 @@ def rendir_salida(id):
             cantidad_rendida=cant
         )
         db.session.add(ri)
-        # NO tocar stock cuadrilla — la rendicion es solo informativa
-        # El stock ya fue sumado al hacer la salida
+
+        # Descontar del stock cuadrilla
+        sc = StockCuadrilla.query.filter_by(
+            cuadrilla_id=salida.cuadrilla_id,
+            producto_id=item.producto_id
+        ).first()
+        if sc:
+            sc.cantidad = max(0, sc.cantidad - cant)
 
     db.session.commit()
     flash(f'✅ Rendición registrada para la entrega #{salida.id}', 'success')

@@ -281,3 +281,200 @@ def salidas():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=f'ANCO_Salidas_{datetime.now().strftime("%Y%m%d")}.xlsx')
+
+
+# ── EXCEL ENTREGADO VS RENDIDO POR CUADRILLA ────────────────────────────────
+@export_bp.route('/entregado_rendido')
+@login_required
+def entregado_rendido():
+    from app.models import RendicionSalida, RendicionSalidaItem
+    from datetime import date
+
+    desde_str    = request.args.get('desde', '')
+    hasta_str    = request.args.get('hasta', '')
+    cuadrilla_id = request.args.get('cuadrilla_id', '')
+
+    hoy = date.today()
+    desde_dt = datetime.strptime(desde_str, '%Y-%m-%d') if desde_str else datetime(hoy.year, hoy.month, 1)
+    hasta_dt = datetime.strptime(hasta_str, '%Y-%m-%d').replace(hour=23, minute=59) if hasta_str else datetime.now()
+
+    cuadrillas = Cuadrilla.query.filter_by(activa=True).all()
+    if cuadrilla_id:
+        cuadrillas = [c for c in cuadrillas if str(c.id) == str(cuadrilla_id)]
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    for cuadrilla in cuadrillas:
+        # Una hoja por cuadrilla
+        nombre_hoja = cuadrilla.nombre[:30].replace('/', '-').replace('\\', '-')
+        ws = wb.create_sheet(title=nombre_hoja)
+
+        # Título
+        ws.merge_cells('A1:G1')
+        ws['A1'] = f'ANCO — {cuadrilla.nombre} — {desde_dt.strftime("%d/%m/%Y")} al {hasta_dt.strftime("%d/%m/%Y")}'
+        ws['A1'].font      = Font(bold=True, size=13, color='FFFFFF')
+        ws['A1'].fill      = PatternFill('solid', fgColor=AZUL_OSCURO)
+        ws['A1'].alignment = Alignment(horizontal='center')
+        ws.row_dimensions[1].height = 28
+
+        # ── SECCIÓN ENTREGAS ──
+        ws.merge_cells('A2:G2')
+        ws['A2'] = '📦 ENTREGAS (SALIDAS DESDE BODEGA)'
+        ws['A2'].font = Font(bold=True, size=11, color='FFFFFF')
+        ws['A2'].fill = PatternFill('solid', fgColor=AZUL)
+        ws['A2'].alignment = Alignment(horizontal='left')
+        ws.row_dimensions[2].height = 20
+
+        headers_ent = ['Fecha', 'Producto', 'Código', 'Unidad', 'Cantidad Entregada', 'Notas', 'Registrado por']
+        for i, h in enumerate(headers_ent, 1):
+            c = ws.cell(row=3, column=i, value=h)
+            c.font = Font(bold=True, color='FFFFFF', size=10)
+            c.fill = PatternFill('solid', fgColor='2c5282')
+            c.alignment = Alignment(horizontal='center')
+
+        salidas = Salida.query.filter(
+            Salida.cuadrilla_id == cuadrilla.id,
+            Salida.creado_en.between(desde_dt, hasta_dt),
+            Salida.anulada == False,
+            Salida.tipo == 'salida'
+        ).order_by(Salida.creado_en).all()
+
+        row_ent = 4
+        total_entregado = 0
+        for s in salidas:
+            for item in s.items:
+                vals = [
+                    s.creado_en.strftime('%d/%m/%Y %H:%M'),
+                    item.producto.descripcion,
+                    item.producto.codigo,
+                    item.producto.unidad,
+                    item.cantidad,
+                    s.notas or '',
+                    s.usuario.nombre if s.usuario else '—'
+                ]
+                for col, val in enumerate(vals, 1):
+                    cell = ws.cell(row=row_ent, column=col, value=val)
+                    cell.border = borde_fino()
+                    if row_ent % 2 == 0:
+                        cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
+                    if col == 5:
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal='center')
+                total_entregado += item.cantidad
+                row_ent += 1
+
+        if row_ent == 4:
+            ws.cell(row=4, column=1, value='Sin entregas en el período').font = Font(italic=True, color='888888')
+            row_ent = 5
+
+        # Total entregas
+        cell_tot = ws.cell(row=row_ent, column=4, value='TOTAL ENTREGADO:')
+        cell_tot.font = Font(bold=True)
+        cell_tot.alignment = Alignment(horizontal='right')
+        cell_tot2 = ws.cell(row=row_ent, column=5, value=total_entregado)
+        cell_tot2.font = Font(bold=True, color=AZUL)
+        cell_tot2.fill = PatternFill('solid', fgColor='dbeafe')
+        row_ent += 2
+
+        # ── SECCIÓN RENDICIONES ──
+        ws.cell(row=row_ent, column=1)
+        ws.merge_cells(f'A{row_ent}:G{row_ent}')
+        ws[f'A{row_ent}'] = '✅ RENDICIONES (LO UTILIZADO EN TERRENO)'
+        ws[f'A{row_ent}'].font = Font(bold=True, size=11, color='FFFFFF')
+        ws[f'A{row_ent}'].fill = PatternFill('solid', fgColor=VERDE)
+        ws[f'A{row_ent}'].alignment = Alignment(horizontal='left')
+        ws.row_dimensions[row_ent].height = 20
+        row_ent += 1
+
+        headers_rend = ['Fecha', 'Producto', 'Código', 'Unidad', 'Cantidad Rendida', 'Notas', 'Registrado por']
+        for i, h in enumerate(headers_rend, 1):
+            c = ws.cell(row=row_ent, column=i, value=h)
+            c.font = Font(bold=True, color='FFFFFF', size=10)
+            c.fill = PatternFill('solid', fgColor='1a6b5f')
+            c.alignment = Alignment(horizontal='center')
+        row_ent += 1
+
+        try:
+            rend_salidas = RendicionSalida.query.filter(
+                RendicionSalida.cuadrilla_id == cuadrilla.id,
+                RendicionSalida.creado_en.between(desde_dt, hasta_dt)
+            ).order_by(RendicionSalida.creado_en).all()
+        except:
+            rend_salidas = []
+
+        total_rendido = 0
+        row_rend = row_ent
+        for rend in rend_salidas:
+            for item in rend.items:
+                vals = [
+                    rend.creado_en.strftime('%d/%m/%Y %H:%M'),
+                    item.producto.descripcion,
+                    item.producto.codigo,
+                    item.producto.unidad,
+                    item.cantidad_rendida,
+                    rend.notas or '',
+                    rend.usuario.nombre if rend.usuario else '—'
+                ]
+                for col, val in enumerate(vals, 1):
+                    cell = ws.cell(row=row_rend, column=col, value=val)
+                    cell.border = borde_fino()
+                    if row_rend % 2 == 0:
+                        cell.fill = PatternFill('solid', fgColor='f0fdf8')
+                    if col == 5:
+                        cell.font = Font(bold=True)
+                        cell.alignment = Alignment(horizontal='center')
+                total_rendido += item.cantidad_rendida
+                row_rend += 1
+
+        if row_rend == row_ent:
+            ws.cell(row=row_ent, column=1, value='Sin rendiciones en el período').font = Font(italic=True, color='888888')
+            row_rend = row_ent + 1
+
+        # Total rendido
+        cell_tr = ws.cell(row=row_rend, column=4, value='TOTAL RENDIDO:')
+        cell_tr.font = Font(bold=True)
+        cell_tr.alignment = Alignment(horizontal='right')
+        cell_tr2 = ws.cell(row=row_rend, column=5, value=total_rendido)
+        cell_tr2.font = Font(bold=True, color=VERDE)
+        cell_tr2.fill = PatternFill('solid', fgColor='d1fae5')
+        row_rend += 2
+
+        # ── RESUMEN DIFERENCIA ──
+        ws.merge_cells(f'A{row_rend}:G{row_rend}')
+        ws[f'A{row_rend}'] = '📊 RESUMEN'
+        ws[f'A{row_rend}'].font = Font(bold=True, size=11, color='FFFFFF')
+        ws[f'A{row_rend}'].fill = PatternFill('solid', fgColor=AZUL_OSCURO)
+        ws[f'A{row_rend}'].alignment = Alignment(horizontal='left')
+        row_rend += 1
+
+        diferencia = total_rendido - total_entregado
+        resumen = [
+            ('Total Entregado:', total_entregado, AZUL),
+            ('Total Rendido:',   total_rendido,   VERDE),
+            ('Diferencia:',      diferencia,      ROJO if diferencia < 0 else VERDE),
+        ]
+        for label, val, color in resumen:
+            ws.cell(row=row_rend, column=3, value=label).font = Font(bold=True)
+            ws.cell(row=row_rend, column=3).alignment = Alignment(horizontal='right')
+            c = ws.cell(row=row_rend, column=4, value=val)
+            c.font = Font(bold=True, color=color, size=12)
+            c.alignment = Alignment(horizontal='center')
+            row_rend += 1
+
+        auto_ancho(ws)
+
+    # Si no hay cuadrillas con datos crea una hoja de aviso
+    if len(wb.sheetnames) == 0:
+        ws = wb.create_sheet('Sin datos')
+        ws['A1'] = 'No hay datos en el período seleccionado'
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    nombre = f'ANCO_Entregado_Rendido_{desde_dt.strftime("%d%m%Y")}_{hasta_dt.strftime("%d%m%Y")}.xlsx'
+    return send_file(output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=nombre)
