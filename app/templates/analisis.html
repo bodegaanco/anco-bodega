@@ -294,6 +294,36 @@
   </div>
 </div>
 
+
+<script>
+function abrirComparativo() {
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('exp-hasta').value = hoy;
+  const d = new Date(); d.setDate(1);
+  document.getElementById('exp-desde').value = d.toISOString().split('T')[0];
+  openModal('exportComparativoModal');
+}
+
+function descargarComparativo() {
+  const desde      = document.getElementById('exp-desde').value;
+  const hasta      = document.getElementById('exp-hasta').value;
+  const cuadrilla  = document.getElementById('exp-cuadrilla').value;
+  const inventario = document.getElementById('exp-inventario').value;
+  if (!desde || !hasta) { alert('Selecciona rango de fechas'); return; }
+  let url = `/export/comparativo_cuadrilla?desde=${desde}&hasta=${hasta}`;
+  if (cuadrilla) url += `&cuadrilla_id=${cuadrilla}`;
+  if (inventario) url += `&inventario_id=${inventario}`;
+  window.location.href = url;
+  closeModal('exportComparativoModal');
+}
+
+function descargarExcel() {
+  const desde = document.querySelector('input[name="desde"]').value;
+  const hasta  = document.querySelector('input[name="hasta"]').value;
+  window.location.href = `/export/entregado_rendido?desde=${desde}&hasta=${hasta}`;
+}
+</script>
+
 {% endblock %}
 
 {% block scripts %}
@@ -341,19 +371,6 @@ new Chart(document.getElementById('chartCuadrilla'), {
 });
 {% endif %}
 
-function abrirComparativo() {
-  const hoy = new Date().toISOString().split('T')[0];
-  document.getElementById('exp-hasta').value = hoy;
-  // Set desde to first of current month
-  const d = new Date(); d.setDate(1);
-  document.getElementById('exp-desde').value = d.toISOString().split('T')[0];
-  openModal('exportComparativoModal');
-}
 
-function descargarExcel() {
-  const desde = document.querySelector('input[name="desde"]').value;
-  const hasta  = document.querySelector('input[name="hasta"]').value;
-  window.location.href = `/export/entregado_rendido?desde=${desde}&hasta=${hasta}`;
-}
 </script>
 {% endblock %}

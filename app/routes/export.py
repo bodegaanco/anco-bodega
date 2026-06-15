@@ -289,6 +289,7 @@ def salidas():
 def entregado_rendido():
     from app.models import RendicionSalida, RendicionSalidaItem
     from datetime import date
+    from collections import defaultdict
 
     desde_str    = request.args.get('desde', '')
     hasta_str    = request.args.get('hasta', '')
@@ -306,165 +307,111 @@ def entregado_rendido():
     wb.remove(wb.active)
 
     for cuadrilla in cuadrillas:
-        # Una hoja por cuadrilla
-        nombre_hoja = cuadrilla.nombre[:30].replace('/', '-').replace('\\', '-')
-        ws = wb.create_sheet(title=nombre_hoja)
+        ws = wb.create_sheet(title=cuadrilla.nombre[:30].replace('/', '-'))
 
         # Título
-        ws.merge_cells('A1:G1')
+        ws.merge_cells('A1:F1')
         ws['A1'] = f'ANCO — {cuadrilla.nombre} — {desde_dt.strftime("%d/%m/%Y")} al {hasta_dt.strftime("%d/%m/%Y")}'
         ws['A1'].font      = Font(bold=True, size=13, color='FFFFFF')
         ws['A1'].fill      = PatternFill('solid', fgColor=AZUL_OSCURO)
         ws['A1'].alignment = Alignment(horizontal='center')
         ws.row_dimensions[1].height = 28
 
-        # ── SECCIÓN ENTREGAS ──
-        ws.merge_cells('A2:G2')
-        ws['A2'] = '📦 ENTREGAS (SALIDAS DESDE BODEGA)'
-        ws['A2'].font = Font(bold=True, size=11, color='FFFFFF')
-        ws['A2'].fill = PatternFill('solid', fgColor=AZUL)
-        ws['A2'].alignment = Alignment(horizontal='left')
-        ws.row_dimensions[2].height = 20
-
-        headers_ent = ['Fecha', 'Producto', 'Código', 'Unidad', 'Cantidad Entregada', 'Notas', 'Registrado por']
-        for i, h in enumerate(headers_ent, 1):
-            c = ws.cell(row=3, column=i, value=h)
+        # Headers por producto
+        headers = ['Producto', 'Código', 'Unidad', 'Total Entregado', 'Total Rendido (Salidas)', 'Total Rendido (OT)']
+        colores = [AZUL_OSCURO, AZUL_OSCURO, AZUL_OSCURO, '2c5282', '1a6b5f', '7b3f00']
+        for i, (h, color) in enumerate(zip(headers, colores), 1):
+            c = ws.cell(row=2, column=i, value=h)
             c.font = Font(bold=True, color='FFFFFF', size=10)
-            c.fill = PatternFill('solid', fgColor='2c5282')
-            c.alignment = Alignment(horizontal='center')
+            c.fill = PatternFill('solid', fgColor=color)
+            c.alignment = Alignment(horizontal='center', wrap_text=True)
+        ws.row_dimensions[2].height = 28
 
+        # Recopilar totales por producto
+        entregado_dict  = defaultdict(float)
+        rendido_sal_dict = defaultdict(float)
+        rendido_ot_dict  = defaultdict(float)
+        productos_dict   = {}
+
+        # Entregas
         salidas = Salida.query.filter(
             Salida.cuadrilla_id == cuadrilla.id,
             Salida.creado_en.between(desde_dt, hasta_dt),
             Salida.anulada == False,
             Salida.tipo == 'salida'
-        ).order_by(Salida.creado_en).all()
-
-        row_ent = 4
-        total_entregado = 0
+        ).all()
         for s in salidas:
             for item in s.items:
-                vals = [
-                    s.creado_en.strftime('%d/%m/%Y %H:%M'),
-                    item.producto.descripcion,
-                    item.producto.codigo,
-                    item.producto.unidad,
-                    item.cantidad,
-                    s.notas or '',
-                    s.usuario.nombre if s.usuario else '—'
-                ]
-                for col, val in enumerate(vals, 1):
-                    cell = ws.cell(row=row_ent, column=col, value=val)
-                    cell.border = borde_fino()
-                    if row_ent % 2 == 0:
-                        cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
-                    if col == 5:
-                        cell.font = Font(bold=True)
-                        cell.alignment = Alignment(horizontal='center')
-                total_entregado += item.cantidad
-                row_ent += 1
+                entregado_dict[item.producto_id] += item.cantidad
+                productos_dict[item.producto_id] = item.producto
 
-        if row_ent == 4:
-            ws.cell(row=4, column=1, value='Sin entregas en el período').font = Font(italic=True, color='888888')
-            row_ent = 5
-
-        # Total entregas
-        cell_tot = ws.cell(row=row_ent, column=4, value='TOTAL ENTREGADO:')
-        cell_tot.font = Font(bold=True)
-        cell_tot.alignment = Alignment(horizontal='right')
-        cell_tot2 = ws.cell(row=row_ent, column=5, value=total_entregado)
-        cell_tot2.font = Font(bold=True, color=AZUL)
-        cell_tot2.fill = PatternFill('solid', fgColor='dbeafe')
-        row_ent += 2
-
-        # ── SECCIÓN RENDICIONES ──
-        ws.cell(row=row_ent, column=1)
-        ws.merge_cells(f'A{row_ent}:G{row_ent}')
-        ws[f'A{row_ent}'] = '✅ RENDICIONES (LO UTILIZADO EN TERRENO)'
-        ws[f'A{row_ent}'].font = Font(bold=True, size=11, color='FFFFFF')
-        ws[f'A{row_ent}'].fill = PatternFill('solid', fgColor=VERDE)
-        ws[f'A{row_ent}'].alignment = Alignment(horizontal='left')
-        ws.row_dimensions[row_ent].height = 20
-        row_ent += 1
-
-        headers_rend = ['Fecha', 'Producto', 'Código', 'Unidad', 'Cantidad Rendida', 'Notas', 'Registrado por']
-        for i, h in enumerate(headers_rend, 1):
-            c = ws.cell(row=row_ent, column=i, value=h)
-            c.font = Font(bold=True, color='FFFFFF', size=10)
-            c.fill = PatternFill('solid', fgColor='1a6b5f')
-            c.alignment = Alignment(horizontal='center')
-        row_ent += 1
-
+        # Rendiciones por salida
         try:
             rend_salidas = RendicionSalida.query.filter(
                 RendicionSalida.cuadrilla_id == cuadrilla.id,
                 RendicionSalida.creado_en.between(desde_dt, hasta_dt)
-            ).order_by(RendicionSalida.creado_en).all()
+            ).all()
+            for r in rend_salidas:
+                for item in r.items:
+                    rendido_sal_dict[item.producto_id] += item.cantidad_rendida
+                    if item.producto_id not in productos_dict:
+                        productos_dict[item.producto_id] = item.producto
         except:
-            rend_salidas = []
+            pass
 
-        total_rendido = 0
-        row_rend = row_ent
-        for rend in rend_salidas:
-            for item in rend.items:
-                vals = [
-                    rend.creado_en.strftime('%d/%m/%Y %H:%M'),
-                    item.producto.descripcion,
-                    item.producto.codigo,
-                    item.producto.unidad,
-                    item.cantidad_rendida,
-                    rend.notas or '',
-                    rend.usuario.nombre if rend.usuario else '—'
-                ]
-                for col, val in enumerate(vals, 1):
-                    cell = ws.cell(row=row_rend, column=col, value=val)
-                    cell.border = borde_fino()
-                    if row_rend % 2 == 0:
-                        cell.fill = PatternFill('solid', fgColor='f0fdf8')
-                    if col == 5:
-                        cell.font = Font(bold=True)
-                        cell.alignment = Alignment(horizontal='center')
-                total_rendido += item.cantidad_rendida
-                row_rend += 1
+        # Rendiciones OT
+        rend_ot = Rendicion.query.filter(
+            Rendicion.cuadrilla_id == cuadrilla.id,
+            Rendicion.creado_en.between(desde_dt, hasta_dt),
+            Rendicion.anulada == False
+        ).all()
+        for r in rend_ot:
+            for item in r.items:
+                rendido_ot_dict[item.producto_id] += item.cantidad_usada
+                if item.producto_id not in productos_dict:
+                    productos_dict[item.producto_id] = item.producto
 
-        if row_rend == row_ent:
-            ws.cell(row=row_ent, column=1, value='Sin rendiciones en el período').font = Font(italic=True, color='888888')
-            row_rend = row_ent + 1
+        # Escribir filas por producto
+        row = 3
+        tot_ent = tot_rsal = tot_rot = 0
+        for pid, p in sorted(productos_dict.items(), key=lambda x: x[1].descripcion):
+            ent  = entregado_dict.get(pid, 0)
+            rsal = rendido_sal_dict.get(pid, 0)
+            rot  = rendido_ot_dict.get(pid, 0)
+            vals = [p.descripcion, p.codigo, p.unidad, ent, rsal, rot]
+            for col, val in enumerate(vals, 1):
+                cell = ws.cell(row=row, column=col, value=val)
+                cell.border = borde_fino()
+                if row % 2 == 0:
+                    cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
+                if col == 4:
+                    cell.font = Font(bold=True, color='2c5282')
+                    cell.alignment = Alignment(horizontal='center')
+                elif col == 5:
+                    cell.font = Font(bold=True, color='1a6b5f')
+                    cell.alignment = Alignment(horizontal='center')
+                elif col == 6:
+                    cell.font = Font(bold=True, color='7b3f00')
+                    cell.alignment = Alignment(horizontal='center')
+            tot_ent += ent; tot_rsal += rsal; tot_rot += rot
+            row += 1
 
-        # Total rendido
-        cell_tr = ws.cell(row=row_rend, column=4, value='TOTAL RENDIDO:')
-        cell_tr.font = Font(bold=True)
-        cell_tr.alignment = Alignment(horizontal='right')
-        cell_tr2 = ws.cell(row=row_rend, column=5, value=total_rendido)
-        cell_tr2.font = Font(bold=True, color=VERDE)
-        cell_tr2.fill = PatternFill('solid', fgColor='d1fae5')
-        row_rend += 2
+        if not productos_dict:
+            ws.cell(row=3, column=1, value='Sin movimientos en el período').font = Font(italic=True, color='888888')
+            row = 4
 
-        # ── RESUMEN DIFERENCIA ──
-        ws.merge_cells(f'A{row_rend}:G{row_rend}')
-        ws[f'A{row_rend}'] = '📊 RESUMEN'
-        ws[f'A{row_rend}'].font = Font(bold=True, size=11, color='FFFFFF')
-        ws[f'A{row_rend}'].fill = PatternFill('solid', fgColor=AZUL_OSCURO)
-        ws[f'A{row_rend}'].alignment = Alignment(horizontal='left')
-        row_rend += 1
-
-        diferencia = total_rendido - total_entregado
-        resumen = [
-            ('Total Entregado:', total_entregado, AZUL),
-            ('Total Rendido:',   total_rendido,   VERDE),
-            ('Diferencia:',      diferencia,      ROJO if diferencia < 0 else VERDE),
-        ]
-        for label, val, color in resumen:
-            ws.cell(row=row_rend, column=3, value=label).font = Font(bold=True)
-            ws.cell(row=row_rend, column=3).alignment = Alignment(horizontal='right')
-            c = ws.cell(row=row_rend, column=4, value=val)
-            c.font = Font(bold=True, color=color, size=12)
+        # Totales
+        ws.cell(row=row, column=3, value='TOTALES').font = Font(bold=True)
+        ws.cell(row=row, column=3).alignment = Alignment(horizontal='right')
+        for col, val in [(4, tot_ent), (5, tot_rsal), (6, tot_rot)]:
+            c = ws.cell(row=row, column=col, value=val)
+            c.font = Font(bold=True, size=11)
+            c.fill = PatternFill('solid', fgColor='dbeafe')
             c.alignment = Alignment(horizontal='center')
-            row_rend += 1
+            c.border = borde_fino()
 
         auto_ancho(ws)
 
-    # Si no hay cuadrillas con datos crea una hoja de aviso
     if len(wb.sheetnames) == 0:
         ws = wb.create_sheet('Sin datos')
         ws['A1'] = 'No hay datos en el período seleccionado'
@@ -472,12 +419,10 @@ def entregado_rendido():
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-
     nombre = f'ANCO_Entregado_Rendido_{desde_dt.strftime("%d%m%Y")}_{hasta_dt.strftime("%d%m%Y")}.xlsx'
     return send_file(output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=nombre)
+        as_attachment=True, download_name=nombre)
 
 
 # ── EXCEL COMPARATIVO COMPLETO POR CUADRILLA ────────────────────────────────
