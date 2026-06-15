@@ -88,6 +88,8 @@ def rendiciones():
 def nueva_rendicion():
     cuadrilla_id  = request.form.get('cuadrilla_id')
     numero_ot     = request.form.get('numero_ot', '').strip().upper()
+    fecha_str     = request.form.get('fecha_ot', '')
+    hora_str      = request.form.get('hora_ot', '00:00')
     producto_ids  = request.form.getlist('producto_id[]')
     cantidades    = request.form.getlist('cantidad[]')
     forzar        = request.form.get('forzar', '0')

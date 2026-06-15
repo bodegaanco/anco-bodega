@@ -142,6 +142,9 @@ def index():
          .group_by(Cuadrilla.id)\
          .order_by(func.sum(SalidaItem.cantidad).desc()).all()
 
+    from app.models import Inventario
+    inventarios_lista = Inventario.query.order_by(Inventario.creado_en.desc()).limit(50).all()
+
     return render_template('analisis.html',
         desde_str=desde_str, hasta_str=hasta_str,
         total_salidas=total_salidas, total_ots=total_ots,
@@ -161,4 +164,6 @@ def index():
         producto_id=producto_id,
         productos_lista=Producto.query.filter_by(activo=True).order_by(Producto.descripcion).all(),
         dias_periodo=(hasta_dt.date() - desde_dt.date()).days,
+        cuadrillas_lista=cuadrillas_all,
+        inventarios_lista=inventarios_lista,
     )

@@ -27,7 +27,8 @@
       </div>
       <button type="submit" class="btn btn-primary">Analizar</button>
       <a href="{{ url_for('analisis.index') }}" class="btn btn-outline">Resetear</a>
-      <a href="#" onclick="descargarExcel()" class="btn btn-outline" style="color:#2a9d8f;border-color:#2a9d8f">📊 Exportar Excel</a>
+      <a href="#" onclick="descargarExcel()" class="btn btn-outline" style="color:#2a9d8f;border-color:#2a9d8f">📊 Entregado/Rendido</a>
+      <button type="button" onclick="abrirComparativo()" class="btn btn-outline" style="color:#7b3f00;border-color:#7b3f00">📊 Comparativo Completo</button>
     </form>
   </div>
 </div>
@@ -240,6 +241,59 @@
 </div>
 {% endif %}
 
+
+<!-- MODAL EXPORTAR COMPARATIVO COMPLETO -->
+<div class="modal-overlay" id="exportComparativoModal">
+  <div class="modal" style="width:600px;max-width:98vw">
+    <div class="modal-header" style="background:#7b3f00">
+      <div class="modal-title">📊 Exportar Comparativo Completo</div>
+      <button class="modal-close" onclick="closeModal('exportComparativoModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div style="background:#fff8e1;border-radius:6px;padding:12px;font-size:13px;margin-bottom:16px;color:#7b3f00">
+        Genera un Excel con <strong>Entregado + Rendido Salidas + Rendido OT + Stock Inventario</strong> por cuadrilla
+      </div>
+      <div class="form-row" style="margin-bottom:14px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Desde</label>
+          <input type="date" id="exp-desde" class="form-input">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Hasta</label>
+          <input type="date" id="exp-hasta" class="form-input">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Cuadrilla (opcional — vacío = todas)</label>
+        <select id="exp-cuadrilla" class="form-select">
+          <option value="">Todas las cuadrillas</option>
+          {% for c in cuadrillas_lista %}
+          <option value="{{ c.id }}">{{ c.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Inventario a comparar (opcional)</label>
+        <select id="exp-inventario" class="form-select">
+          <option value="">Sin inventario</option>
+          {% for inv in inventarios_lista %}
+          <option value="{{ inv.id }}">
+            {{ inv.creado_en.strftime('%d/%m/%Y') }} —
+            {% if inv.tipo == 'bodega' %}Bodega{% else %}{{ inv.cuadrilla.nombre if inv.cuadrilla else '?' }}{% endif %}
+            ({{ inv.items|length }} productos)
+          </option>
+          {% endfor %}
+        </select>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Selecciona el inventario físico que quieres comparar con los movimientos del período</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closeModal('exportComparativoModal')">Cancelar</button>
+      <button type="button" class="btn btn-primary" style="background:#7b3f00;border-color:#7b3f00" onclick="descargarComparativo()">📊 Generar Excel</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -286,6 +340,15 @@ new Chart(document.getElementById('chartCuadrilla'), {
   }
 });
 {% endif %}
+
+function abrirComparativo() {
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('exp-hasta').value = hoy;
+  // Set desde to first of current month
+  const d = new Date(); d.setDate(1);
+  document.getElementById('exp-desde').value = d.toISOString().split('T')[0];
+  openModal('exportComparativoModal');
+}
 
 function descargarExcel() {
   const desde = document.querySelector('input[name="desde"]').value;

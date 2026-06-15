@@ -28,8 +28,15 @@ def index():
 @login_required
 def entrada():
     if request.method == 'POST':
-        productos_ids  = request.form.getlist('producto_id[]')
-        cantidades     = request.form.getlist('cantidad[]')
+        from datetime import datetime as dt
+        fecha_str    = request.form.get('fecha_entrada', '')
+        hora_str     = request.form.get('hora_entrada', '00:00')
+        productos_ids = request.form.getlist('producto_id[]')
+        cantidades    = request.form.getlist('cantidad[]')
+        try:
+            fecha_dt = dt.strptime(f"{fecha_str} {hora_str}", "%Y-%m-%d %H:%M") if fecha_str else dt.utcnow()
+        except:
+            fecha_dt = dt.utcnow()
         for pid, cant in zip(productos_ids, cantidades):
             if pid and cant and float(cant) > 0:
                 producto = Producto.query.get(pid)
@@ -40,14 +47,16 @@ def entrada():
                         producto_id   = producto.id,
                         cantidad      = float(cant),
                         stock_antes   = antes,
-                        stock_despues = producto.stock_bodega
+                        stock_despues = producto.stock_bodega,
+                        creado_en     = fecha_dt
                     )
                     db.session.add(entrada)
         db.session.commit()
         flash('✅ Entrada registrada correctamente', 'success')
         return redirect(url_for('stock.index'))
+    from datetime import datetime as dt
     productos = Producto.query.filter_by(activo=True).order_by(Producto.descripcion).all()
-    return render_template('entrada.html', productos=productos)
+    return render_template('entrada.html', productos=productos, now=dt.now())
 
 @stock_bp.route('/ajuste/<int:id>', methods=['POST'])
 @login_required

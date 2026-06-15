@@ -13,35 +13,70 @@
 <div class="card">
   <div class="card-header"><div class="card-title">📋 Historial de Inventarios</div></div>
   <table class="tbl">
-    <thead><tr><th>Fecha</th><th>Tipo</th><th>Productos</th><th>Diferencias</th><th>Registrado por</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Producto</th>
+        <th style="text-align:center">Sistema</th>
+        <th style="text-align:center">Real</th>
+        <th style="text-align:center">Diferencia</th>
+        <th>Registrado por</th>
+      </tr>
+    </thead>
     <tbody>
       {% for inv in inventarios %}
-      <tr>
-        <td style="color:var(--text-muted)">{{ inv.creado_en.strftime('%d %b %Y %H:%M') }}</td>
-        <td>
-          {% if inv.tipo == 'bodega' %}
-            <span class="badge badge-warning">🏭 Bodega</span>
-          {% else %}
-            <span class="badge badge-blue">🚚 {{ inv.cuadrilla.nombre if inv.cuadrilla else 'Cuadrilla' }}</span>
-          {% endif %}
-        </td>
-        <td>{{ inv.items|length }} producto(s)</td>
-        <td>
-          {% set difs = inv.items|selectattr('diferencia','ne',0)|list %}
-          {% if difs %}
-            {% for item in difs %}
-              <span class="badge {{ 'badge-danger' if item.diferencia < 0 else 'badge-ok' }}" style="margin:1px">
-                {{ item.producto.descripcion|truncate(18) }}: {{ '+' if item.diferencia > 0 }}{{ item.diferencia|num }}
-              </span>
-            {% endfor %}
-          {% else %}
-            <span class="badge badge-ok">Sin diferencias</span>
-          {% endif %}
-        </td>
-        <td style="color:var(--text-muted)">{{ inv.usuario.nombre if inv.usuario else '—' }}</td>
-      </tr>
+        {% if inv.items %}
+          {% for item in inv.items %}
+          <tr style="{% if item.diferencia < 0 %}background:#ffeaea{% elif item.diferencia > 0 %}background:#f0fdf8{% endif %}">
+            {% if loop.first %}
+            <td style="color:var(--text-muted);white-space:nowrap;vertical-align:top" rowspan="{{ inv.items|length }}">
+              <strong>{{ inv.creado_en.strftime('%d %b %Y') }}</strong>
+              <div style="font-size:11px">{{ inv.creado_en.strftime('%H:%M') }}</div>
+            </td>
+            <td style="vertical-align:top" rowspan="{{ inv.items|length }}">
+              {% if inv.tipo == 'bodega' %}
+                <span class="badge badge-warning">🏭 Bodega</span>
+              {% else %}
+                <span class="badge badge-blue">🚚 {{ inv.cuadrilla.nombre if inv.cuadrilla else '—' }}</span>
+              {% endif %}
+            </td>
+            {% endif %}
+            <td>
+              <div style="font-size:13px;font-weight:600">{{ item.producto.descripcion }}</div>
+              <div style="font-size:11px;color:var(--text-muted)">{{ item.producto.codigo }} · {{ item.producto.unidad }}</div>
+            </td>
+            <td style="text-align:center;font-weight:700;color:var(--primary)">{{ item.stock_sistema|num }}</td>
+            <td style="text-align:center;font-weight:700;color:#2a9d8f">{{ item.stock_real|num }}</td>
+            <td style="text-align:center">
+              {% if item.diferencia == 0 %}
+                <span class="badge badge-ok">✓ OK</span>
+              {% elif item.diferencia > 0 %}
+                <span style="font-weight:800;color:#2a9d8f">▲ +{{ item.diferencia|num }}</span>
+              {% else %}
+                <span style="font-weight:800;color:var(--danger)">▼ {{ item.diferencia|num }}</span>
+              {% endif %}
+            </td>
+            {% if loop.first %}
+            <td style="color:var(--text-muted);font-size:12px;vertical-align:top" rowspan="{{ inv.items|length }}">
+              {{ inv.usuario.nombre if inv.usuario else '—' }}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        {% else %}
+        <tr>
+          <td style="color:var(--text-muted)">{{ inv.creado_en.strftime('%d %b %Y %H:%M') }}</td>
+          <td>
+            {% if inv.tipo == 'bodega' %}<span class="badge badge-warning">🏭 Bodega</span>
+            {% else %}<span class="badge badge-blue">🚚 {{ inv.cuadrilla.nombre if inv.cuadrilla else '—' }}</span>{% endif %}
+          </td>
+          <td colspan="4" style="color:var(--text-muted);font-size:12px">Sin productos registrados</td>
+          <td style="color:var(--text-muted)">{{ inv.usuario.nombre if inv.usuario else '—' }}</td>
+        </tr>
+        {% endif %}
       {% else %}
-      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Sin inventarios registrados aún</td></tr>
+      <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Sin inventarios registrados aún</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -224,10 +259,12 @@ async function cargarStockCuadrilla(cuadrillaId) {
   const res   = await fetch(`/inventario/stock_cuadrilla/${cuadrillaId}`);
   const stocks = await res.json();
 
-  // Ocultar todas las filas primero
+  // Ocultar todas las filas y resetear data-val
   document.querySelectorAll('.inv-row').forEach(row => {
     row.style.display = 'none';
-    row.querySelector('.stock-sistema').textContent = '0';
+    const sisEl = row.querySelector('.stock-sistema');
+    sisEl.textContent = '0';
+    sisEl.dataset.val = '0';
   });
 
   if (stocks.length === 0) {
@@ -235,12 +272,14 @@ async function cargarStockCuadrilla(cuadrillaId) {
     return;
   }
 
-  // Mostrar solo los que tienen stock en esta cuadrilla
+  // Mostrar solo los que tienen stock en esta cuadrilla y actualizar data-val
   stocks.forEach(s => {
     const row = document.querySelector(`.inv-row[data-pid="${s.producto_id}"]`);
     if (row) {
       row.style.display = '';
-      row.querySelector('.stock-sistema').textContent = formatNum(s.cantidad);
+      const sisEl = row.querySelector('.stock-sistema');
+      sisEl.textContent = formatNum(s.cantidad);
+      sisEl.dataset.val = s.cantidad;  // CLAVE: actualizar para calcular diferencia correcta
     }
   });
 

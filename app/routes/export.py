@@ -478,3 +478,202 @@ def entregado_rendido():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
         download_name=nombre)
+
+
+# ── EXCEL COMPARATIVO COMPLETO POR CUADRILLA ────────────────────────────────
+@export_bp.route('/comparativo_cuadrilla')
+@login_required
+def comparativo_cuadrilla():
+    from app.models import RendicionSalida, RendicionSalidaItem, Inventario, InventarioItem, StockCuadrilla
+    from datetime import date
+
+    desde_str    = request.args.get('desde', '')
+    hasta_str    = request.args.get('hasta', '')
+    cuadrilla_id = request.args.get('cuadrilla_id', '')
+    inventario_id = request.args.get('inventario_id', '')
+
+    hoy = date.today()
+    desde_dt = datetime.strptime(desde_str, '%Y-%m-%d') if desde_str else datetime(hoy.year, hoy.month, 1)
+    hasta_dt = datetime.strptime(hasta_str, '%Y-%m-%d').replace(hour=23, minute=59) if hasta_str else datetime.now()
+
+    cuadrillas = Cuadrilla.query.filter_by(activa=True).all()
+    if cuadrilla_id:
+        cuadrillas = [c for c in cuadrillas if str(c.id) == str(cuadrilla_id)]
+
+    # Inventario seleccionado (opcional)
+    inventario_sel = None
+    if inventario_id:
+        inventario_sel = Inventario.query.get(inventario_id)
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    COLOR_HEADER  = 'FFFFFF'
+    COL_ENT  = '2c5282'  # azul entregas
+    COL_REND = '1a6b5f'  # verde rendiciones salida
+    COL_OT   = '7b3f00'  # cafe OT
+    COL_INV  = '4a1d6e'  # morado inventario
+
+    for cuadrilla in cuadrillas:
+        ws = wb.create_sheet(title=cuadrilla.nombre[:30].replace('/', '-'))
+
+        # ── TÍTULO ──
+        ws.merge_cells('A1:H1')
+        ws['A1'] = f'ANCO — {cuadrilla.nombre} — {desde_dt.strftime("%d/%m/%Y")} al {hasta_dt.strftime("%d/%m/%Y")}'
+        ws['A1'].font = Font(bold=True, size=13, color='FFFFFF')
+        ws['A1'].fill = PatternFill('solid', fgColor=AZUL_OSCURO)
+        ws['A1'].alignment = Alignment(horizontal='center')
+        ws.row_dimensions[1].height = 28
+
+        if inventario_sel:
+            ws.merge_cells('A2:H2')
+            ws['A2'] = f'Inventario comparado: {inventario_sel.creado_en.strftime("%d/%m/%Y %H:%M")}'
+            ws['A2'].font = Font(bold=True, size=10, color='FFFFFF')
+            ws['A2'].fill = PatternFill('solid', fgColor='4a1d6e')
+            ws['A2'].alignment = Alignment(horizontal='center')
+            ws.row_dimensions[2].height = 18
+            fila_header = 3
+        else:
+            fila_header = 2
+
+        # ── HEADERS ──
+        headers = [
+            ('Producto',            AZUL_OSCURO),
+            ('Código',              AZUL_OSCURO),
+            ('Unidad',              AZUL_OSCURO),
+            ('Entregado',           COL_ENT),
+            ('Rendido (Salidas)',   COL_REND),
+            ('Rendido (OT)',        COL_OT),
+            ('Total Rendido',       AZUL),
+            ('Stock Inventario',    COL_INV),
+        ]
+        for col, (h, color) in enumerate(headers, 1):
+            c = ws.cell(row=fila_header, column=col, value=h)
+            c.font = Font(bold=True, color='FFFFFF', size=10)
+            c.fill = PatternFill('solid', fgColor=color)
+            c.alignment = Alignment(horizontal='center', wrap_text=True)
+        ws.row_dimensions[fila_header].height = 28
+
+        # ── RECOPILAR DATOS por producto ──
+        # Todos los productos que tuvo movimiento en esta cuadrilla
+        productos_ids = set()
+
+        # Entregas
+        salidas = Salida.query.filter(
+            Salida.cuadrilla_id == cuadrilla.id,
+            Salida.creado_en.between(desde_dt, hasta_dt),
+            Salida.anulada == False,
+            Salida.tipo == 'salida'
+        ).all()
+        for s in salidas:
+            for item in s.items:
+                productos_ids.add(item.producto_id)
+
+        # Rendiciones por salida
+        try:
+            rends_salida = RendicionSalida.query.filter(
+                RendicionSalida.cuadrilla_id == cuadrilla.id,
+                RendicionSalida.creado_en.between(desde_dt, hasta_dt)
+            ).all()
+            for r in rends_salida:
+                for item in r.items:
+                    productos_ids.add(item.producto_id)
+        except:
+            rends_salida = []
+
+        # Rendiciones OT
+        rends_ot = Rendicion.query.filter(
+            Rendicion.cuadrilla_id == cuadrilla.id,
+            Rendicion.creado_en.between(desde_dt, hasta_dt),
+            Rendicion.anulada == False
+        ).all()
+        for r in rends_ot:
+            for item in r.items:
+                productos_ids.add(item.producto_id)
+
+        # Inventario seleccionado
+        inv_dict = {}
+        if inventario_sel:
+            inv_items = InventarioItem.query.filter_by(
+                inventario_id=inventario_sel.id
+            ).all()
+            for item in inv_items:
+                if item.producto.id not in productos_ids:
+                    productos_ids.add(item.producto.id)
+                inv_dict[item.producto_id] = item.stock_real
+
+        if not productos_ids:
+            ws.cell(row=fila_header+1, column=1, value='Sin movimientos en el período').font = Font(italic=True, color='888888')
+            auto_ancho(ws)
+            continue
+
+        productos = Producto.query.filter(Producto.id.in_(productos_ids)).order_by(Producto.descripcion).all()
+
+        # Calcular totales por producto
+        fila = fila_header + 1
+        tot_ent, tot_rend_sal, tot_rend_ot, tot_inv = 0, 0, 0, 0
+
+        for p in productos:
+            # Entregado
+            entregado = sum(
+                item.cantidad for s in salidas for item in s.items if item.producto_id == p.id
+            )
+            # Rendido por salida
+            rendido_sal = sum(
+                item.cantidad_rendida for r in rends_salida for item in r.items if item.producto_id == p.id
+            )
+            # Rendido OT
+            rendido_ot = sum(
+                item.cantidad_usada for r in rends_ot for item in r.items if item.producto_id == p.id
+            )
+            total_rendido = rendido_sal + rendido_ot
+            stock_inv = inv_dict.get(p.id, '—')
+
+            vals = [p.descripcion, p.codigo, p.unidad, entregado, rendido_sal, rendido_ot, total_rendido, stock_inv]
+            for col, val in enumerate(vals, 1):
+                cell = ws.cell(row=fila, column=col, value=val)
+                cell.border = borde_fino()
+                if fila % 2 == 0:
+                    cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
+                if col in [4,5,6,7,8]:
+                    cell.alignment = Alignment(horizontal='center')
+                if col == 4:
+                    cell.font = Font(bold=True, color=COL_ENT)
+                elif col == 5:
+                    cell.font = Font(bold=True, color=COL_REND)
+                elif col == 6:
+                    cell.font = Font(bold=True, color=COL_OT)
+                elif col == 7:
+                    cell.font = Font(bold=True, color=AZUL)
+                elif col == 8 and stock_inv != '—':
+                    cell.font = Font(bold=True, color=COL_INV)
+
+            if isinstance(entregado, (int, float)): tot_ent += entregado
+            if isinstance(rendido_sal, (int, float)): tot_rend_sal += rendido_sal
+            if isinstance(rendido_ot, (int, float)): tot_rend_ot += rendido_ot
+            if isinstance(stock_inv, (int, float)): tot_inv += stock_inv
+            fila += 1
+
+        # Fila de totales
+        ws.cell(row=fila, column=3, value='TOTALES').font = Font(bold=True)
+        ws.cell(row=fila, column=3).alignment = Alignment(horizontal='right')
+        for col, val in [(4, tot_ent), (5, tot_rend_sal), (6, tot_rend_ot), (7, tot_rend_sal+tot_rend_ot), (8, tot_inv if tot_inv else '—')]:
+            c = ws.cell(row=fila, column=col, value=val)
+            c.font = Font(bold=True, size=11)
+            c.fill = PatternFill('solid', fgColor='dbeafe')
+            c.alignment = Alignment(horizontal='center')
+            c.border = borde_fino()
+
+        auto_ancho(ws)
+
+    if len(wb.sheetnames) == 0:
+        ws = wb.create_sheet('Sin datos')
+        ws['A1'] = 'No hay datos en el período seleccionado'
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    nombre = f'ANCO_Comparativo_{desde_dt.strftime("%d%m%Y")}_{hasta_dt.strftime("%d%m%Y")}.xlsx'
+    return send_file(output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True, download_name=nombre)

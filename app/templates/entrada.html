@@ -26,7 +26,17 @@
       <div class="info-box" style="margin-top:14px">💡 El stock de bodega se actualizará automáticamente al registrar.</div>
       <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
         <a href="{{ url_for('stock.index') }}" class="btn btn-outline">Cancelar</a>
-        <button type="submit" class="btn btn-primary">✅ Registrar Entrada</button>
+              <div class="form-row" style="margin-bottom:16px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Fecha de entrada</label>
+          <input type="date" name="fecha_entrada" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}" required>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Hora</label>
+          <input type="time" name="hora_entrada" class="form-input" value="{{ now.strftime('%H:%M') }}">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">✅ Registrar Entrada</button>
       </div>
     </form>
   </div>
