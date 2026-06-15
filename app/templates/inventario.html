@@ -84,7 +84,7 @@
 
 <!-- MODAL INVENTARIO -->
 <div class="modal-overlay" id="inventarioModal">
-  <div class="modal" style="width:750px;max-width:98vw">
+  <div class="modal" style=width:750px;max-width:98vw;max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header" id="invHeader">
       <div class="modal-title">🔍 Nuevo Inventario Físico</div>
       <button class="modal-close" onclick="closeModal('inventarioModal')">✕</button>
@@ -177,7 +177,7 @@
 
 <!-- MODAL CARGAR EXCEL -->
 <div class="modal-overlay" id="excelModal">
-  <div class="modal">
+  <div class="modal" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header" style="background:#2a9d8f">
       <div class="modal-title">📊 Cargar Inventario desde Excel</div>
       <button class="modal-close" onclick="closeModal('excelModal')">✕</button>
@@ -212,7 +212,7 @@
           💡 El sistema buscará cada código en el catálogo de productos y ajustará el stock automáticamente. Los códigos no encontrados se informarán al final.
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-shrink:0">
         <button type="button" class="btn btn-outline" onclick="closeModal('excelModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f">📊 Aplicar Inventario</button>
       </div>

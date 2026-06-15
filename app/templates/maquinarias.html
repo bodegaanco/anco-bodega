@@ -160,7 +160,7 @@
 
 <!-- MODAL NUEVA MAQUINARIA -->
 <div class="modal-overlay" id="nuevaMaqModal">
-  <div class="modal">
+  <div class="modal" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header">
       <div class="modal-title">🔧 Nuevo Equipo / Maquinaria</div>
       <button class="modal-close" onclick="closeModal('nuevaMaqModal')">✕</button>
@@ -182,7 +182,7 @@
           <input type="text" name="descripcion" class="form-input" placeholder="Ej: Generador eléctrico para emergencias">
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-shrink:0">
         <button type="button" class="btn btn-outline" onclick="closeModal('nuevaMaqModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar Equipo</button>
       </div>
@@ -192,7 +192,7 @@
 
 <!-- MODAL PRESTAR -->
 <div class="modal-overlay" id="prestarModal">
-  <div class="modal">
+  <div class="modal" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header">
       <div class="modal-title">📤 Entregar Equipo a Cuadrilla</div>
       <button class="modal-close" onclick="closeModal('prestarModal')">✕</button>
@@ -230,7 +230,7 @@
         </div>
         <div class="info-box">💡 Solo aparecen los equipos <strong>Disponibles</strong>.</div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-shrink:0">
         <button type="button" class="btn btn-outline" onclick="closeModal('prestarModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary">Entregar Equipo</button>
       </div>
@@ -240,7 +240,7 @@
 
 <!-- MODAL DEVOLVER -->
 <div class="modal-overlay" id="devolverModal">
-  <div class="modal">
+  <div class="modal" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header" style="background:#2a9d8f">
       <div class="modal-title">📥 Devolver — <span id="devolver-nombre"></span></div>
       <button class="modal-close" onclick="closeModal('devolverModal')">✕</button>
@@ -257,7 +257,7 @@
             style="resize:vertical"></textarea>
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-shrink:0">
         <button type="button" class="btn btn-outline" onclick="closeModal('devolverModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f">Confirmar Devolución</button>
       </div>

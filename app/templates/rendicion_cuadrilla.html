@@ -44,7 +44,7 @@
 
 <!-- MODAL NUEVA RENDICION -->
 <div class="modal-overlay" id="rendCuadModal">
-  <div class="modal" style="width:700px;max-width:98vw">
+  <div class="modal" style=width:700px;max-width:98vw;max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header" style="background:#2a9d8f">
       <div class="modal-title">📥 Nueva Rendición de Cuadrilla</div>
       <button class="modal-close" onclick="closeModal('rendCuadModal')">✕</button>
@@ -124,7 +124,7 @@
           💡 Registra los materiales que la cuadrilla te devuelve o rinde. Se descuentan de su stock teórico.
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="flex-shrink:0">
         <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenRC"></div>
         <button type="button" class="btn btn-outline" onclick="closeModal('rendCuadModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary" style="background:#2a9d8f;border-color:#2a9d8f" onclick="return prepararRC()">✅ Registrar Rendición</button>

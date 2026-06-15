@@ -3,63 +3,291 @@
 {% block page_title %}Registrar Entrada a Bodega{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:700px">
+<div class="card" style="max-width:750px">
   <div class="card-header">
     <div class="card-title">📥 Nueva Entrada de Material</div>
+    <div style="display:flex;gap:8px">
+      <button type="button" onclick="toggleModo('manual')" id="btn-manual" class="btn btn-primary btn-sm">📝 Manual</button>
+      <button type="button" onclick="toggleModo('escaner')" id="btn-escaner" class="btn btn-outline btn-sm">🔫 Escáner</button>
+    </div>
   </div>
   <div class="card-body">
-    <form method="POST" action="{{ url_for('stock.entrada') }}">
-      <label class="form-label">Productos que ingresan a bodega</label>
-      <div id="entrada-items">
-        <div class="item-row">
-          <select class="form-select" name="producto_id[]" required>
-            <option value="">Seleccionar producto...</option>
-            {% for p in productos %}
-            <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }}) · Stock: {{ p.stock_bodega|num }}</option>
-            {% endfor %}
-          </select>
-          <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01" required>
-          <span></span>
-        </div>
+
+    <!-- FECHA Y HORA -->
+    <div class="form-row" style="margin-bottom:16px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Fecha de entrada</label>
+        <input type="date" id="fecha-entrada-field" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}">
       </div>
-      <button type="button" class="btn-add-more" onclick="addEntrada()">+ Agregar otro producto</button>
-      <div class="info-box" style="margin-top:14px">💡 El stock de bodega se actualizará automáticamente al registrar.</div>
-      <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
-        <a href="{{ url_for('stock.index') }}" class="btn btn-outline">Cancelar</a>
-              <div class="form-row" style="margin-bottom:16px">
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Fecha de entrada</label>
-          <input type="date" name="fecha_entrada" class="form-input" value="{{ now.strftime('%Y-%m-%d') }}" required>
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Hora</label>
-          <input type="time" name="hora_entrada" class="form-input" value="{{ now.strftime('%H:%M') }}">
-        </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Hora</label>
+        <input type="time" id="hora-entrada-field" class="form-input" value="{{ now.strftime('%H:%M') }}">
       </div>
-      <button type="submit" class="btn btn-primary">✅ Registrar Entrada</button>
-      </div>
-    </form>
+    </div>
+
+    <!-- MODO MANUAL -->
+    <div id="modo-manual">
+      <form method="POST" action="{{ url_for('stock.entrada') }}" id="entradaManualForm">
+        <input type="hidden" name="fecha_entrada" id="fecha-manual-h">
+        <input type="hidden" name="hora_entrada" id="hora-manual-h">
+        <label class="form-label">Productos que ingresan a bodega</label>
+        <div id="entrada-items">
+          <div class="item-row">
+            <select class="form-select" name="producto_id[]" required>
+              <option value="">Seleccionar producto...</option>
+              {% for p in productos %}
+              <option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }}) · Stock: {{ p.stock_bodega|num }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01" required>
+            <span></span>
+          </div>
+        </div>
+        <button type="button" class="btn-add-more" onclick="addEntrada()">+ Agregar otro producto</button>
+        <div class="info-box" style="margin-top:14px">💡 El stock de bodega se actualizará automáticamente al registrar.</div>
+        <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+          <a href="{{ url_for('stock.index') }}" class="btn btn-outline">Cancelar</a>
+          <button type="submit" class="btn btn-primary" onclick="prepararEntradaManual()">✅ Registrar Entrada</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- MODO ESCÁNER -->
+    <div id="modo-escaner" style="display:none">
+      <form method="POST" action="{{ url_for('stock.entrada') }}" id="entradaEscanerForm">
+        <input type="hidden" name="fecha_entrada" id="fecha-escaner-h">
+        <input type="hidden" name="hora_entrada" id="hora-escaner-h">
+
+        <!-- Buscador -->
+        <div style="background:#eef5ff;border-radius:8px;padding:12px;margin-bottom:14px">
+          <label class="form-label" style="color:var(--primary)">🔫 Escanea código de barras o escribe el nombre</label>
+          <input type="text" id="inputEntradaEsc" class="form-input"
+            placeholder="Escanea o escribe nombre del producto..."
+            oninput="buscarEntradaEsc(this.value)"
+            autocomplete="off">
+          <div id="sugerenciasEntradaEsc" style="display:none;background:#fff;border:1.5px solid var(--primary);border-radius:6px;margin-top:4px;max-height:180px;overflow-y:auto;position:relative;z-index:999"></div>
+        </div>
+
+        <!-- Lista productos escaneados -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label class="form-label" style="margin-bottom:0">Productos a ingresar</label>
+          <span id="contadorEntEsc" style="font-size:12px;color:var(--primary);font-weight:600"></span>
+        </div>
+        <div id="listaEntradaEsc" style="min-height:60px;max-height:280px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+          <div id="listaEntradaEscVacia" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">Escanea o busca productos para agregarlos aquí</div>
+          <table style="width:100%;border-collapse:collapse;display:none" id="tablaEntradaEsc">
+            <thead style="background:#f8fafc;position:sticky;top:0">
+              <tr>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left">Producto</th>
+                <th style="padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:110px;text-align:center">Cantidad</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyEntradaEsc"></tbody>
+          </table>
+        </div>
+
+        <div id="hiddenEntradaEsc"></div>
+        <div class="info-box" style="margin-top:12px">💡 Escanea el código de barras de la etiqueta del producto.</div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:space-between;align-items:center">
+          <span id="resumenEntEsc" style="font-size:12px;color:var(--text-muted)"></span>
+          <div style="display:flex;gap:10px">
+            <a href="{{ url_for('stock.index') }}" class="btn btn-outline">Cancelar</a>
+            <button type="submit" class="btn btn-primary" onclick="return prepararEntradaEsc()">✅ Registrar Entrada</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  const productosOpts = `{% for p in productos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }})</option>{% endfor %}`;
+const PRODUCTOS_ENTRADA = [
+  {% for p in productos %}
+  { id: {{ p.id }}, nombre: {{ p.descripcion | tojson }}, codigo: {{ p.codigo | tojson }}, unidad: {{ p.unidad | tojson }}, stock: {{ p.stock_bodega }} }{{ ',' if not loop.last }}
+  {% endfor %}
+];
 
-  function addEntrada() {
-    const c = document.getElementById('entrada-items');
-    const d = document.createElement('div');
-    d.className = 'item-row';
-    d.style.marginTop = '8px';
-    d.innerHTML = `
-      <select class="form-select" name="producto_id[]">
-        <option value="">Seleccionar producto...</option>${productosOpts}
-      </select>
-      <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01">
-      <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
-    `;
-    c.appendChild(d);
+let productosEntradaEsc = [];
+
+// ── TOGGLE MODO ───────────────────────────────────────────────
+function toggleModo(modo) {
+  document.getElementById('modo-manual').style.display  = modo === 'manual'  ? 'block' : 'none';
+  document.getElementById('modo-escaner').style.display = modo === 'escaner' ? 'block' : 'none';
+  document.getElementById('btn-manual').className  = 'btn btn-sm ' + (modo === 'manual'  ? 'btn-primary' : 'btn-outline');
+  document.getElementById('btn-escaner').className = 'btn btn-sm ' + (modo === 'escaner' ? 'btn-primary' : 'btn-outline');
+}
+
+// ── MANUAL ────────────────────────────────────────────────────
+const productosOpts = `{% for p in productos %}<option value="{{ p.id }}">{{ p.codigo }} — {{ p.descripcion }} ({{ p.unidad }})</option>{% endfor %}`;
+
+function addEntrada() {
+  const c = document.getElementById('entrada-items');
+  const d = document.createElement('div');
+  d.className = 'item-row';
+  d.style.marginTop = '8px';
+  d.innerHTML = `
+    <select class="form-select" name="producto_id[]">
+      <option value="">Seleccionar producto...</option>${productosOpts}
+    </select>
+    <input type="number" class="form-input" name="cantidad[]" placeholder="Cant." min="0.01" step="0.01">
+    <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
+  `;
+  c.appendChild(d);
+}
+
+function prepararEntradaManual() {
+  document.getElementById('fecha-manual-h').value = document.getElementById('fecha-entrada-field').value;
+  document.getElementById('hora-manual-h').value  = document.getElementById('hora-entrada-field').value;
+}
+
+// ── ESCÁNER — BUSCAR ──────────────────────────────────────────
+function buscarEntradaEsc(q) {
+  const sug = document.getElementById('sugerenciasEntradaEsc');
+  if (!q || q.length < 2) { sug.style.display='none'; return; }
+  const res = PRODUCTOS_ENTRADA.filter(p =>
+    p.nombre.toLowerCase().includes(q.toLowerCase()) || p.codigo.includes(q)
+  ).slice(0, 8);
+  if (!res.length) { sug.style.display='none'; return; }
+  sug.innerHTML = res.map(p => `
+    <div onclick="agregarEntradaEsc(${p.id})"
+      style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"
+      onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''">
+      <div>
+        <div style="font-weight:600;font-size:13px">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.codigo} · Stock: ${p.stock}</div>
+      </div>
+      <span class="badge badge-blue">${p.unidad}</span>
+    </div>`).join('');
+  sug.style.display = 'block';
+}
+
+function agregarEntradaEsc(pid) {
+  const prod = PRODUCTOS_ENTRADA.find(p => p.id === pid);
+  if (!prod) return;
+  document.getElementById('sugerenciasEntradaEsc').style.display = 'none';
+  document.getElementById('inputEntradaEsc').value = '';
+
+  const existe = productosEntradaEsc.find(p => p.id === pid);
+  if (existe) {
+    // Enfocar campo cantidad del existente
+    const inp = document.getElementById(`cant-ent-${pid}`);
+    if (inp) { inp.focus(); inp.select(); }
+    document.activeElement.blur();
+    return;
   }
+  productosEntradaEsc.push({ ...prod, cantidad: 1 });
+  renderListaEntradaEsc();
+  document.activeElement.blur();
+}
+
+function renderListaEntradaEsc() {
+  const vacia = document.getElementById('listaEntradaEscVacia');
+  const tabla = document.getElementById('tablaEntradaEsc');
+  const tbody = document.getElementById('tbodyEntradaEsc');
+  const cont  = document.getElementById('contadorEntEsc');
+
+  if (productosEntradaEsc.length === 0) {
+    vacia.style.display = 'block';
+    tabla.style.display = 'none';
+    cont.textContent = '';
+    document.getElementById('resumenEntEsc').textContent = '';
+    return;
+  }
+  vacia.style.display = 'none';
+  tabla.style.display = 'table';
+  cont.textContent = `${productosEntradaEsc.length} producto(s)`;
+
+  tbody.innerHTML = productosEntradaEsc.map((p, idx) => `
+    <tr style="border-bottom:1px solid var(--border);${idx%2===0?'':'background:#fafcff'}">
+      <td style="padding:10px 12px">
+        <div style="font-weight:600;font-size:13px">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.codigo} · Stock actual: ${p.stock} ${p.unidad}</div>
+      </td>
+      <td style="padding:8px 12px;text-align:center">
+        <input type="number" id="cant-ent-${p.id}" class="form-input"
+          value="${p.cantidad}" min="0.01" step="0.01"
+          style="text-align:center;padding:6px 8px;font-size:16px;font-weight:700;width:90px;border:2px solid var(--border);border-radius:6px"
+          oninput="actualizarCantEntEsc(${p.id}, this.value)"
+          onfocus="this.select();this.style.borderColor='var(--primary)'"
+          onblur="this.style.borderColor='var(--border)'">
+      </td>
+      <td style="padding:8px 12px;text-align:center">
+        <button type="button" onclick="quitarEntradaEsc(${p.id})" style="background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer">×</button>
+      </td>
+    </tr>`).join('');
+
+  const total = productosEntradaEsc.reduce((s,p) => s + p.cantidad, 0);
+  document.getElementById('resumenEntEsc').textContent = `${productosEntradaEsc.length} productos · ${total} unidades totales`;
+}
+
+function actualizarCantEntEsc(pid, val) {
+  const p = productosEntradaEsc.find(p => p.id === pid);
+  if (p) p.cantidad = parseFloat(val) || 0;
+  const total = productosEntradaEsc.reduce((s,p) => s + p.cantidad, 0);
+  document.getElementById('resumenEntEsc').textContent = `${productosEntradaEsc.length} productos · ${total} unidades totales`;
+}
+
+function quitarEntradaEsc(pid) {
+  productosEntradaEsc = productosEntradaEsc.filter(p => p.id !== pid);
+  renderListaEntradaEsc();
+}
+
+function prepararEntradaEsc() {
+  if (productosEntradaEsc.length === 0) { alert('Agrega al menos un producto.'); return false; }
+  let valido = true;
+  productosEntradaEsc.forEach(p => { if (!p.cantidad || p.cantidad <= 0) valido = false; });
+  if (!valido) { alert('Ingresa cantidades válidas para todos los productos.'); return false; }
+
+  document.getElementById('fecha-escaner-h').value = document.getElementById('fecha-entrada-field').value;
+  document.getElementById('hora-escaner-h').value  = document.getElementById('hora-entrada-field').value;
+
+  const cont = document.getElementById('hiddenEntradaEsc'); cont.innerHTML = '';
+  productosEntradaEsc.forEach(p => {
+    const ip=document.createElement('input'); ip.type='hidden'; ip.name='producto_id[]'; ip.value=p.id; cont.appendChild(ip);
+    const ic=document.createElement('input'); ic.type='hidden'; ic.name='cantidad[]'; ic.value=p.cantidad; cont.appendChild(ic);
+  });
+  return true;
+}
+
+// ── ESCÁNER EYOYO ─────────────────────────────────────────────
+let bufferEnt = '', timerEnt = null;
+document.addEventListener('keydown', function(e) {
+  if (document.getElementById('modo-escaner').style.display === 'none') return;
+  if (document.activeElement.id === 'inputEntradaEsc') return;
+  if (document.activeElement.id && document.activeElement.id.startsWith('cant-ent-')) {
+    if (e.key.length === 1 && !e.ctrlKey) { bufferEnt += e.key; clearTimeout(timerEnt); timerEnt = setTimeout(()=>{bufferEnt='';},150); e.preventDefault(); }
+    if (e.key === 'Enter') { e.preventDefault(); const cod=bufferEnt.trim(); bufferEnt=''; clearTimeout(timerEnt); if(cod.length>=6) procesarEscEntrada(cod); }
+    return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const cod = bufferEnt.trim(); bufferEnt = ''; clearTimeout(timerEnt);
+    if (cod.length >= 6) procesarEscEntrada(cod);
+  } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+    bufferEnt += e.key; clearTimeout(timerEnt);
+    timerEnt = setTimeout(() => { bufferEnt = ''; }, 150);
+  }
+}, true);
+
+function procesarEscEntrada(codigo) {
+  const prod = PRODUCTOS_ENTRADA.find(p => p.codigo === codigo);
+  if (prod) {
+    agregarEntradaEsc(prod.id);
+    // Focus on quantity field
+    setTimeout(() => {
+      const inp = document.getElementById(`cant-ent-${prod.id}`);
+      if (inp) { inp.focus(); inp.select(); }
+    }, 100);
+  } else {
+    let t = document.getElementById('toastEnt');
+    if (!t) { t=document.createElement('div'); t.id='toastEnt'; t.style.cssText='position:fixed;bottom:80px;right:24px;background:#1a2b3c;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;border-left:4px solid #e63946;display:none;max-width:300px'; document.body.appendChild(t); }
+    t.textContent = `⚠️ Código ${codigo} no encontrado`;
+    t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>{t.style.display='none'},2500);
+  }
+}
 </script>
 {% endblock %}
