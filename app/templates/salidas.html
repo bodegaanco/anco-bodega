@@ -78,7 +78,7 @@
       <div class="modal-title">📋 Salida Manual</div>
       <button class="modal-close" onclick="closeModal('salidaManualModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaManualForm">
+    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaManualForm" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div class="form-row" style="margin-bottom:16px">
           <div class="form-group" style="margin-bottom:0">
@@ -165,7 +165,7 @@
       <div class="modal-title">🔫 Salida con Escáner</div>
       <button class="modal-close" onclick="closeModal('salidaEscanerModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaEscanerForm">
+    <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaEscanerForm" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div class="form-row" style="margin-bottom:16px">
           <div class="form-group" style="margin-bottom:0">
