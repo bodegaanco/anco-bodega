@@ -73,13 +73,13 @@
 
 <!-- ══ MODAL SALIDA MANUAL ════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="salidaManualModal">
-  <div class="modal" style="width:700px;max-width:98vw;max-height:90vh;display:flex;flex-direction:column">
+  <div class="modal" style="width:700px;max-width:98vw">
     <div class="modal-header">
       <div class="modal-title">📋 Salida Manual</div>
       <button class="modal-close" onclick="closeModal('salidaManualModal')">✕</button>
     </div>
     <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaManualForm">
-      <div class="modal-body" style="padding:20px;flex:1;overflow-y:auto;min-height:0">
+      <div class="modal-body">
         <div class="form-row" style="margin-bottom:16px">
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Cuadrilla</label>
@@ -149,7 +149,7 @@
         </div>
         <div id="hiddenManual"></div>
       </div>
-      <div class="modal-footer" style="flex-shrink:0">
+      <div class="modal-footer">
         <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenManual"></div>
         <button type="button" class="btn btn-outline" onclick="closeModal('salidaManualModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary" onclick="return prepararManual()">Registrar Salida</button>
@@ -166,7 +166,7 @@
       <button class="modal-close" onclick="closeModal('salidaEscanerModal')">✕</button>
     </div>
     <form method="POST" action="{{ url_for('movimientos.nueva_salida') }}" id="salidaEscanerForm">
-      <div class="modal-body" style="padding:20px;flex:1;overflow-y:auto;min-height:0">
+      <div class="modal-body">
         <div class="form-row" style="margin-bottom:16px">
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Cuadrilla</label>
@@ -218,7 +218,7 @@
         <div id="hiddenEscaner"></div>
         <div class="info-box" style="margin-top:10px">💡 Escanea el código de barras de la etiqueta o escribe el nombre del producto.</div>
       </div>
-      <div class="modal-footer" style="flex-shrink:0">
+      <div class="modal-footer">
         <div style="flex:1;font-size:12px;color:var(--text-muted)" id="resumenEscaner"></div>
         <button type="button" class="btn btn-outline" onclick="closeModal('salidaEscanerModal')">Cancelar</button>
         <button type="submit" class="btn btn-primary" onclick="return prepararEscaner()">Registrar Salida</button>
@@ -244,7 +244,7 @@
           <input type="text" name="motivo" class="form-input" placeholder="Ej: Error en cantidad..." required>
         </div>
       </div>
-      <div class="modal-footer" style="flex-shrink:0">
+      <div class="modal-footer">
         <button type="button" class="btn btn-outline" onclick="closeModal('anularModal')">Cancelar</button>
         <button type="submit" class="btn btn-danger">Confirmar Anulación</button>
       </div>
