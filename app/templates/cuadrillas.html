@@ -99,7 +99,7 @@
       <div class="modal-title">🚚 Agregar Cuadrilla</div>
       <button class="modal-close" onclick="closeModal('nuevaCuadrillaModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('cuadrillas.nueva') }}">
+    <form method="POST" action="{{ url_for('cuadrillas.nueva') }}" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Nombre del Maestro</label>

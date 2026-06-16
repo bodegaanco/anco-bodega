@@ -89,7 +89,7 @@
       <div class="modal-title">🔍 Nuevo Inventario Físico</div>
       <button class="modal-close" onclick="closeModal('inventarioModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('inventario.nuevo') }}" id="invForm">
+    <form method="POST" action="{{ url_for('inventario.nuevo') }}" id="invForm" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body" style="padding:0">
 
         <!-- TIPO + CUADRILLA -->
@@ -182,7 +182,7 @@
       <div class="modal-title">📊 Cargar Inventario desde Excel</div>
       <button class="modal-close" onclick="closeModal('excelModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('inventario.cargar_excel') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ url_for('inventario.cargar_excel') }}" enctype="multipart/form-data" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div style="background:#e8f5f3;border-radius:6px;padding:12px;font-size:13px;color:#2a9d8f;font-weight:600;margin-bottom:16px">
           📋 Formato esperado: <strong>Columna A</strong> = nombre, <strong>Columna B</strong> = código, <strong>Columna C</strong> = cantidad

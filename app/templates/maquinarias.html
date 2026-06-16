@@ -165,7 +165,7 @@
       <div class="modal-title">🔧 Nuevo Equipo / Maquinaria</div>
       <button class="modal-close" onclick="closeModal('nuevaMaqModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('maquinarias.nueva') }}">
+    <form method="POST" action="{{ url_for('maquinarias.nueva') }}" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div class="form-row">
           <div class="form-group">
@@ -197,7 +197,7 @@
       <div class="modal-title">📤 Entregar Equipo a Cuadrilla</div>
       <button class="modal-close" onclick="closeModal('prestarModal')">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('maquinarias.prestar') }}">
+    <form method="POST" action="{{ url_for('maquinarias.prestar') }}" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Equipo / Maquinaria</label>
@@ -245,7 +245,7 @@
       <div class="modal-title">📥 Devolver — <span id="devolver-nombre"></span></div>
       <button class="modal-close" onclick="closeModal('devolverModal')">✕</button>
     </div>
-    <form method="POST" id="devolverForm" action="">
+    <form method="POST" id="devolverForm" action="" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div style="background:#e8f5f3;border-radius:6px;padding:12px;font-size:13px;color:#2a9d8f;font-weight:600;margin-bottom:16px">
           ✅ Al confirmar, el equipo volverá al estado <strong>Disponible</strong>.

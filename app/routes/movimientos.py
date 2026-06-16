@@ -11,7 +11,7 @@ movimientos_bp = Blueprint('movimientos', __name__, url_prefix='/movimientos')
 def salidas():
     cuadrilla_id = request.args.get('cuadrilla_id', '')
     fecha        = request.args.get('fecha', '')
-    q = Salida.query
+    q = Salida.query.filter(Salida.tipo == 'salida')  # excluir rendiciones de cuadrilla
     if cuadrilla_id:
         q = q.filter_by(cuadrilla_id=cuadrilla_id)
     salidas_list    = q.order_by(Salida.creado_en.desc()).all()
@@ -147,10 +147,10 @@ def historial():
     cuadrilla    = None
     if cuadrilla_id:
         cuadrilla = Cuadrilla.query.get(cuadrilla_id)
-        salidas   = Salida.query.filter_by(cuadrilla_id=cuadrilla_id)\
+        salidas   = Salida.query.filter_by(cuadrilla_id=cuadrilla_id).filter(Salida.tipo=='salida')\
                         .order_by(Salida.creado_en.desc()).all()
     else:
-        salidas = Salida.query.order_by(Salida.creado_en.desc()).limit(50).all()
+        salidas = Salida.query.filter(Salida.tipo=='salida').order_by(Salida.creado_en.desc()).limit(50).all()
     return render_template('historial.html',
         salidas=salidas, cuadrillas=cuadrillas, cuadrilla=cuadrilla)
 

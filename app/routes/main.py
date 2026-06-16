@@ -21,7 +21,8 @@ def dashboard():
     # Salidas de hoy
     hoy = date.today()
     salidas_hoy = Salida.query.filter(
-        db.func.date(Salida.creado_en) == hoy
+        db.func.date(Salida.creado_en) == hoy,
+        Salida.tipo == 'salida'
     ).count()
 
     # Alertas de stock (bodega + cuadrillas)
@@ -39,7 +40,7 @@ def dashboard():
 
     # Últimos movimientos (entradas + salidas mezclados)
     ultimas_entradas = Entrada.query.order_by(Entrada.creado_en.desc()).limit(5).all()
-    ultimas_salidas  = Salida.query.order_by(Salida.creado_en.desc()).limit(5).all()
+    ultimas_salidas  = Salida.query.filter(Salida.tipo == 'salida').order_by(Salida.creado_en.desc()).limit(5).all()
 
     return render_template('dashboard.html',
         total_productos    = total_productos,

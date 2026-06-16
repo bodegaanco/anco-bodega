@@ -318,7 +318,7 @@ async function verDetalle(salidaId) {
   data.items.forEach((item, idx) => {
     const saldoBg    = item.saldo > 0 ? '#fff8e1' : item.saldo < 0 ? '#ffeaea' : '#f0fdf8';
     const saldoColor = item.saldo > 0 ? '#c67c00' : item.saldo < 0 ? 'var(--danger)' : 'var(--success)';
-    const saldoLabel = item.saldo > 0 ? 'pendiente' : item.saldo < 0 ? 'exceso' : 'ok';
+    const saldoLabel = item.saldo > 0 ? 'pendiente' : item.saldo < 0 ? (item.entregado == 0 ? 'sin entrega previa' : 'usó más de lo entregado') : 'ok';
     const saldoIcon  = item.saldo > 0 ? '▲' : item.saldo < 0 ? '▼' : '✓';
     const rowBg      = idx % 2 === 0 ? '#fff' : '#fafcff';
 

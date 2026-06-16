@@ -242,11 +242,13 @@ def comparativo():
 @login_required
 def salidas():
     wb = openpyxl.Workbook()
+
+    # ── HOJA 1: SALIDAS (entregas reales desde bodega) ──
     ws = wb.active
-    ws.title = 'Historial Salidas'
+    ws.title = 'Salidas (Entregas)'
 
     ws.merge_cells('A1:F1')
-    ws['A1'] = f'ANCO — Historial de Salidas al {datetime.now().strftime("%d/%m/%Y")}'
+    ws['A1'] = f'ANCO — Salidas / Entregas al {datetime.now().strftime("%d/%m/%Y")}'
     ws['A1'].font      = Font(bold=True, size=13, color='FFFFFF')
     ws['A1'].fill      = PatternFill('solid', fgColor=AZUL_OSCURO)
     ws['A1'].alignment = Alignment(horizontal='center')
@@ -257,7 +259,7 @@ def salidas():
         c.font = Font(bold=True, color='FFFFFF'); c.fill = PatternFill('solid', fgColor=AZUL)
         c.alignment = Alignment(horizontal='center')
 
-    salidas_list = Salida.query.order_by(Salida.creado_en.desc()).all()
+    salidas_list = Salida.query.filter(Salida.tipo == 'salida').order_by(Salida.creado_en.desc()).all()
     row_n = 3
     for s in salidas_list:
         for item in s.items:
@@ -274,8 +276,45 @@ def salidas():
                 if row_n % 2 == 0:
                     cell.fill = PatternFill('solid', fgColor=GRIS_CLARO)
             row_n += 1
-
+    if not salidas_list:
+        ws.cell(row=3, column=1, value='Sin salidas registradas').font = Font(italic=True, color='888888')
     auto_ancho(ws)
+
+    # ── HOJA 2: RENDICIONES DE CUADRILLA (material devuelto sin entrega previa) ──
+    ws2 = wb.create_sheet('Rendiciones Cuadrilla')
+    ws2.merge_cells('A1:F1')
+    ws2['A1'] = f'ANCO — Rendiciones de Cuadrilla (material devuelto/usado) al {datetime.now().strftime("%d/%m/%Y")}'
+    ws2['A1'].font      = Font(bold=True, size=13, color='FFFFFF')
+    ws2['A1'].fill      = PatternFill('solid', fgColor='2a9d8f')
+    ws2['A1'].alignment = Alignment(horizontal='center')
+
+    headers2 = ['Fecha/Hora', 'Cuadrilla', 'Producto', 'Cantidad', 'Unidad', 'Notas']
+    for i, h in enumerate(headers2, 1):
+        c = ws2.cell(row=2, column=i, value=h)
+        c.font = Font(bold=True, color='FFFFFF'); c.fill = PatternFill('solid', fgColor='1a6b5f')
+        c.alignment = Alignment(horizontal='center')
+
+    rend_cuadrilla_list = Salida.query.filter(Salida.tipo == 'rendicion_cuadrilla').order_by(Salida.creado_en.desc()).all()
+    row_n2 = 3
+    for s in rend_cuadrilla_list:
+        for item in s.items:
+            for col_n, val in enumerate([
+                s.creado_en.strftime('%d/%m/%Y %H:%M'),
+                s.cuadrilla.nombre,
+                item.producto.descripcion,
+                item.cantidad,
+                item.producto.unidad,
+                s.notas or ''
+            ], 1):
+                cell = ws2.cell(row=row_n2, column=col_n, value=val)
+                cell.border = borde_fino()
+                if row_n2 % 2 == 0:
+                    cell.fill = PatternFill('solid', fgColor='f0fdf8')
+            row_n2 += 1
+    if not rend_cuadrilla_list:
+        ws2.cell(row=3, column=1, value='Sin rendiciones de cuadrilla registradas').font = Font(italic=True, color='888888')
+    auto_ancho(ws2)
+
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)

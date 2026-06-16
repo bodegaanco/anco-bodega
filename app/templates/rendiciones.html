@@ -140,7 +140,7 @@
 <div class="modal-overlay" id="otModal">
   <div class="modal" style=width:700px;max-width:98vw;max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-header"><div class="modal-title">📋 Nueva Orden de Trabajo</div><button class="modal-close" onclick="closeModal('otModal')">✕</button></div>
-    <form method="POST" action="{{ url_for('movimientos.nueva_rendicion') }}" id="otForm">
+    <form method="POST" action="{{ url_for('movimientos.nueva_rendicion') }}" id="otForm" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <input type="hidden" name="forzar" value="0">
       <div class="modal-body" style="padding:20px;max-height:60vh;overflow-y:auto">
         <div class="form-row" style="margin-bottom:16px">
@@ -220,7 +220,7 @@
       <div class="modal-title">🔍 Revisar OT — <span id="revisar-ot-titulo"></span></div>
       <button class="modal-close" onclick="closeModal('revisarModal')">✕</button>
     </div>
-    <form method="POST" id="revisarForm" action="">
+    <form method="POST" id="revisarForm" action="" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body" style="padding:0">
 
         <!-- INFO -->
@@ -283,7 +283,7 @@
       <div class="modal-title">⚠️ Anular Rendición OT</div>
       <button class="modal-close" onclick="closeModal('anularOTModal')">✕</button>
     </div>
-    <form method="POST" id="anularOTForm" action="">
+    <form method="POST" id="anularOTForm" action="" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="modal-body">
         <div style="background:#ffeaea;border-radius:6px;padding:12px;font-size:13px;color:#e63946;font-weight:600;margin-bottom:14px">
           ⚠️ La OT quedará ANULADA. Esta acción no se puede deshacer.
