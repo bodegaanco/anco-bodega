@@ -91,3 +91,42 @@ def run_migrate_float():
             resultados.append(f"⚠️ {nombre}: {str(e)[:80]}")
 
     return "<h2>Migración Float</h2><pre>" + "\n".join(resultados) + "</pre><br><a href='/'>Volver al sistema</a>"
+
+@main_bp.route('/setup-inicial-2026')
+def setup_inicial():
+    """Ruta temporal SIN login para crear tablas y usuarios en BD nueva"""
+    from app.models import Usuario
+    from werkzeug.security import generate_password_hash
+
+    resultado = []
+    try:
+        db.create_all()
+        resultado.append("✅ Tablas creadas correctamente")
+    except Exception as e:
+        resultado.append(f"⚠️ Error creando tablas: {e}")
+        return "<pre>" + "\n".join(resultado) + "</pre>"
+
+    usuarios_nuevos = [
+        ('Bodeguero',         'bodega.anco@gmail.com',              'anco2025',  'bodeguero'),
+        ('Francisco Muñoz',   'franciscomunozg2002@gmail.com',      'anco2025',  'administrador'),
+        ('Supervisor 1',      'supervisor1.anco@gmail.com',         'anco2025',  'supervisor'),
+        ('Supervisor 2',      'supervisor2.anco@gmail.com',         'anco2025',  'supervisor'),
+        ('Supervisor 3',      'supervisor3.anco@gmail.com',         'anco2025',  'supervisor'),
+        ('Administrador',     'admin.anco@gmail.com',               'anco2025',  'administrador'),
+    ]
+    for nombre, email, pw, rol in usuarios_nuevos:
+        try:
+            if not Usuario.query.filter_by(email=email).first():
+                db.session.add(Usuario(
+                    nombre=nombre, email=email,
+                    password=generate_password_hash(pw), rol=rol
+                ))
+                db.session.commit()
+                resultado.append(f"✅ Creado: {email} / {pw} ({rol})")
+            else:
+                resultado.append(f"ℹ️ Ya existe: {email}")
+        except Exception as e:
+            db.session.rollback()
+            resultado.append(f"⚠️ Error con {email}: {e}")
+
+    return "<h2>Setup Inicial</h2><pre>" + "\n".join(resultado) + "</pre><br><a href='/'>Ir al login</a>"
